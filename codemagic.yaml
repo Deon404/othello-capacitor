@@ -1,0 +1,20 @@
+workflows:
+  ios-workflow:
+    name: Build iOS App (Capacitor)
+    max_build_duration: 30
+    environment:
+      vars:
+        CAPACITOR_PROJECT_PATH: .
+      node: latest
+      xcode: latest
+    scripts:
+      - npm install
+      - npx cap sync ios
+      - cd ios/App
+      - xcodebuild -workspace App.xcworkspace -scheme App -configuration Release CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - sadiqalam4u@gmail.com
