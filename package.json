@@ -4,8 +4,8 @@
   "main": "index.js",
   "dependencies": {
     "@capacitor/android": "^7.3.0",
-    "@capacitor/cli": "^7.3.0",
-    "@capacitor/core": "^7.3.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
     "@capacitor/ios": "^7.4.0",
     "abbrev": "^2.0.0",
     "android-versions": "^2.0.0",
@@ -82,5 +82,13 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Deon404/othello-capacitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Deon404/othello-capacitor/issues"
+  },
+  "homepage": "https://github.com/Deon404/othello-capacitor#readme",
   "description": ""
 }
