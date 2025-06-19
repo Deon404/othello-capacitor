@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Player vs Bot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+          integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"/>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Remove the floating move-feedback styles */
+        /*
+        .move-feedback {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+             ... other styles ...
+        }
+
+        .move-feedback.visible { ... }
+        .move-feedback.optimal { ... }
+         ... other feedback styles ...
+        */
+
+        /* Add specific styles for feedback items within the Skip History list */
+        #skip-history-box ul li {
+             margin: 6px 0;
+             font-size: 0.9rem;
+             line-height: 1.5;
+             list-style-type: none;
+             /* Base styling for messages */
+             padding: 4px 8px;
+             border-radius: 4px;
+             background-color: rgba(255, 255, 255, 0.05); /* Subtle background */
+             border-left: 3px solid transparent; /* Default border */
+        }
+
+        /* Player Move Feedback Styles */
+        #skip-history-box ul li.feedback-optimal { border-left-color: #34d399; /* Green */ }
+        #skip-history-box ul li.feedback-good { border-left-color: #5a9ed0; /* Blue */ }
+        #skip-history-box ul li.feedback-okay { border-left-color: #facc15; /* Yellow */ }
+        #skip-history-box ul li.feedback-risky,
+        #skip-history-box ul li.feedback-bad,
+        #skip-history-box ul li.feedback-suboptimal { border-left-color: #ef4444; /* Red */ }
+
+        /* Bot Move Feedback Styles */
+         #skip-history-box ul li.feedback-bot {
+             border-left-color: #6b7280; /* Grey */
+             /* background-color: rgba(107, 114, 128, 0.1); */
+         }
+          #skip-history-box ul li.feedback-bot.feedback-optimal { border-left-color: #10b981; /* Darker Green */ }
+          #skip-history-box ul li.feedback-bot.feedback-good { border-left-color: #3b82f6; /* Darker Blue */ }
+          #skip-history-box ul li.feedback-bot.feedback-okay { border-left-color: #eab308; /* Darker Yellow */ }
+          #skip-history-box ul li.feedback-bot.feedback-risky,
+          #skip-history-box ul li.feedback-bot.feedback-bad,
+          #skip-history-box ul li.feedback-bot.feedback-suboptimal { border-left-color: #dc2626; /* Darker Red */ }
+
+
+        /* Skip Turn Message Style */
+         #skip-history-box ul li.skip-message {
+             font-style: italic;
+             color: var(--skip-history-text-color);
+             border-left-color: #9ca3af; /* Greyish border */
+         }
+
+         /* History View Message Style */
+         #skip-history-box ul li.history-view-message {
+             text-align: center;
+             font-style: italic;
+             color: var(--skip-history-heading-color);
+             background: none;
+             border: none;
+             padding: 8px 0;
+             font-size: 1rem;
+         }
+
+
+
+
+    
+        /* Add specific styles for corner dots within this game page */
+         .cell.corner-dot::after {
+            content: "";
+            display: block;
+            width: 6px;
+            height: 6px;
+            background-color: black; /* Default black for corners */
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1;
+        }
+
+ 
+
+    </style>
+</head>
+<body>
+<div class="score-board">
+    <div id="black-score">Black : 2</div>
+    <div id="white-score">White : 2</div>
+</div>
+
+<!-- DROPDOWN MENU STRUCTURE -->
+<div class="game-menu-dropdown">
+    <button id="game-menu-button" class="dropdown-button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-bars"></i> Menu
+    </button>
+    <div id="game-menu-content" class="dropdown-content">
+        <a href="#" id="toggle-hints-dropdown">Hide Hints</a>
+        <a href="#" id="restart-dropdown">Restart Game</a>
+        <a href="index.html">Main Menu</a>
+    </div>
+</div>
+
+  <!-- The game board -->
+  <div id="board" class="board"></div>
+</div>
+
+<!-- History Navigation Buttons -->
+<div class="history-buttons">
+    <button id="prev-move-btn" disabled><i class="fas fa-step-backward"></i></button>
+    <button id="next-move-btn" disabled><i class="fas fa-step-forward"></i></button>
+</div>
+
+
+<div id="skip-turn-overlay" class="skip-turn-overlay">
+    <div id="skip-turn-popup" class="skip-turn-popup">
+        <span id="skip-player-message">Player</span> Skipped Turn!
+    </div>
+</div>
+
+<div id="game-over"></div>
+<div id="skip-history-box">
+    <h3>History:</h3> <!-- Changed heading to just "History" -->
+     <ul id="skip-history-list"></ul>
+</div>
+
+<footer>
+    <a style="color: rgb(175, 175, 175); text-decoration: none;" href="https://www.instagram.com/sidonstudio/">Developed
+        by @SidonStudio</a>
+</footer>
+<script>
+ // Load settings from localStorage
+    function applyTheme(themeName) {
+        const theme = colorThemes[themeName];
+        if (theme) {
+            for (const [variable, value] of Object.entries(theme)) {
+                document.documentElement.style.setProperty(`--${variable}`, value);
+            }
+        }
+    }
+
+    function loadTheme() {
+        const theme = localStorage.getItem('color-theme') || 'default';
+        applyTheme(theme);
+    }
+
+            const colorThemes = {
+            default: {
+                'background-color-1': '#1f372b',
+                'background-color-2': '#112719',
+                'text-color': '#ffffff',
+                'button-color': '#34d399',
+                'button-text-color': '#1f2937',
+                'button-hover-color': '#10b981',
+                'board-color': '#059669',
+                'scoreboard-text-color': '#ffffff',
+                'skip-history-heading-color': '#ffffff',
+                'skip-history-text-color': '#9ca3af',
+                'piece-black-dark': '#000',
+                'piece-black-light': '#444',
+                'piece-white-dark': '#ddd',
+                'piece-white-light': '#fff',
+                'last-move-dot-color': '#ff0000'
+            },
+            dark: {
+                'background-color-1': '#333333',
+                'background-color-2': '#222222',
+                'text-color': '#eeeeee',
+                'button-color': '#555555',
+                'button-text-color': '#ffffff',
+                'button-hover-color': '#777777',
+                'board-color': '#444444',
+                'scoreboard-text-color': '#eeeeee',
+                'skip-history-heading-color': '#eeeeee',
+                'skip-history-text-color': '#9ca3af',
+                'piece-black-dark': '#111',
+                'piece-black-light': '#555',
+                'piece-white-dark': '#ccc',
+                'piece-white-light': '#eee',
+                 'last-move-dot-color': '#ff0000'
+            },
+            forest: {
+                'background-color-1': '#38593b',
+                'background-color-2': '#2b3a2d',
+                'text-color': '#d0e8ca',
+                'button-color': '#6b8e23',
+                'button-text-color': '#ffffff',
+                'button-hover-color': '#8fbc5a',
+                'board-color': '#4c6d4f',
+                'scoreboard-text-color': '#d0e8ca',
+                'skip-history-heading-color': '#d0e8ca',
+                'skip-history-text-color': '#9ca3af',
+                 'piece-black-dark': '#000',
+                'piece-black-light': '#333',
+                'piece-white-dark': '#c0d9bc',
+                'piece-white-light': '#e0f9dc',
+                 'last-move-dot-color': '#ff0000'
+            },
+             // Removed old midnight, reddish, royal themes
+
+            // --- New Themes based on Image Palettes ---
+             grapefruit: {
+                 'background-color-1': '#EC5564',
+                 'background-color-2': '#D94452',
+                 'text-color': '#ffffff',
+                 'button-color': '#F76D82',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FC8370',
+                 'board-color': '#EC5564',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             bittersweet: {
+                 'background-color-1': '#FB6D51',
+                 'background-color-2': '#E8563F',
+                 'text-color': '#ffffff',
+                 'button-color': '#FC8370',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#fb6d51',
+                 'board-color': '#FB6D51',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             sunflower: {
+                 'background-color-1': '#FECD57',
+                 'background-color-2': '#F5BA45',
+                 'text-color': '#1f2937',
+                 'button-color': '#FCD277',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FECD57',
+                 'board-color': '#FECD57',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             grass: {
+                 'background-color-1': '#9ED36A',
+                 'background-color-2': '#8AC054',
+                 'text-color': '#1f2937',
+                 'button-color': '#84E080',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#62DDBD',
+                 'board-color': '#9ED36A',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             mint: {
+                 'background-color-1': '#46CEAD',
+                 'background-color-2': '#35BB9B',
+                 'text-color': '#ffffff',
+                 'button-color': '#62DDBD',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#84E080',
+                 'board-color': '#46CEAD',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             aqua: {
+                 'background-color-1': '#5EC0C0',
+                 'background-color-2': '#40A9A9',
+                 'text-color': '#ffffff',
+                 'button-color': '#7BC9C9',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#5a9ed0',
+                 'board-color': '#5EC0C0',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             bluejeans: {
+                 'background-color-1': '#5E9CEA',
+                 'background-color-2': '#4B89DA',
+                 'text-color': '#ffffff',
+                 'button-color': '#73B1F4',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#3282b8',
+                 'board-color': '#5E9CEA',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             lavenderpurple: {
+                 'background-color-1': '#AC92EA',
+                 'background-color-2': '#967ADA',
+                 'text-color': '#1f2937',
+                 'button-color': '#B3A5EF',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#F299CE',
+                 'board-color': '#AC92EA',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             lavenderpink: {
+                 'background-color-1': '#EB87BF',
+                 'background-color-2': '#D670AC',
+                 'text-color': '#1f2937',
+                 'button-color': '#F299CE',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#B3A5EF',
+                 'board-color': '#EB87BF',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             skintone: {
+                 'background-color-1': '#F0C8A5',
+                 'background-color-2': '#E4B693',
+                 'text-color': '#1f2937',
+                 'button-color': '#F4D0B5',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FC8370',
+                 'board-color': '#F0C8A5',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             lightgray: {
+                 'background-color-1': '#E5E8EC',
+                 'background-color-2': '#CBD0D8',
+                 'text-color': '#1f2937',
+                 'button-color': '#F4F6F9',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#A9B1BC',
+                 'board-color': '#E5E8EC',
+                 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937',
+                 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             },
+             darkgray: {
+                 'background-color-1': '#646C77',
+                 'background-color-2': '#424953',
+                 'text-color': '#ffffff',
+                 'button-color': '#A9B1BC',
+                 'button-text-color': '#1f2937',
+                 'button-hover-color': '#E5E8EC',
+                 'board-color': '#646C77',
+                 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff',
+                 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444',
+                 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000'
+             }
+        };
+    loadTheme();
+
+    window.addEventListener('storage', function (event) {
+        if (event.key === 'color-theme') {
+            loadTheme();
+        }
+    });
+
+    const placeSound = new Audio('sounds/place.mp3');
+    const winSound = new Audio('sounds/win.wav');
+
+    const BOARD_SIZE = 8;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+    let HUMAN = BLACK;
+    let BOT = WHITE;
+    let currentPlayer = HUMAN;
+    let scores = {black: 2, white: 2};
+    let showHints = true;
+    let gameOver = false;
+    let board;
+    let animationInProgress = false;
+    let cells = [];
+    // skipHistory will now store feedback messages along with skip messages
+    let skipHistory = []; // Stores objects { message: string, class: string } or skip messages
+    // Game history stores the coordinates of the piece placed in that move
+    let gameHistory = []; // Each state will now include 'lastPlaced' piece coords
+    let currentHistoryIndex = -1;
+    let isViewingHistory = false;
+
+    // Bot difficulty/search depth - set after reading URL parameter
+    let MINIMAX_DEPTH = 4; // Default to Medium
+
+    const directions = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [-1, 1], [1, -1], [1, 1]
+    ];
+
+    // Define "bad" squares (C-squares) - adjacent to corners
+    const cSquares = [
+        [0, 1], [1, 0], [1, 1], // Top-left corner
+        [0, 6], [1, 7], [1, 6], // Top-right corner
+        [6, 0], [7, 1], [6, 1], // Bottom-left corner
+        [6, 7], [7, 6], [6, 6]  // Bottom-right corner
+    ];
+    // Helper to check if a square is a C-square
+    const isCSquare = (r, c) => cSquares.some(([cr, cc]) => cr === r && cc === c);
+    // Helper to check if a square is a corner
+     const isCorner = (r, c) => (r === 0 || r === 7) && (c === 0 || c === 7);
+
+
+    let prevMoveBtn;
+    let nextMoveBtn;
+    let toggleHintsDropdownLink;
+    let restartDropdownLink;
+    let skipHistoryList;
+    // Removed moveFeedbackElement
+
+
+    // Helper function to get URL parameters
+    function getUrlParameter(name) {
+        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+        var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+        var results = regex.exec(location.search);
+        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const gameMenuButton = document.getElementById('game-menu-button');
+        const gameMenuContent = document.getElementById('game-menu-content');
+        const gameMenuDropdown = document.querySelector('.game-menu-dropdown');
+        // Removed moveFeedbackElement = document.getElementById('move-feedback');
+
+
+        prevMoveBtn = document.getElementById('prev-move-btn');
+        nextMoveBtn = document.getElementById('next-move-btn');
+        toggleHintsDropdownLink = document.getElementById('toggle-hints-dropdown');
+        restartDropdownLink = document.getElementById('restart-dropdown');
+        skipHistoryList = document.getElementById('skip-history-list');
+
+
+        if (gameMenuButton && gameMenuContent && gameMenuDropdown) {
+            gameMenuButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isActive = gameMenuDropdown.classList.toggle('active');
+                gameMenuButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+            });
+
+            window.addEventListener('click', (event) => {
+                if (gameMenuDropdown.classList.contains('active')) {
+                    if (!gameMenuDropdown.contains(event.target)) {
+                        gameMenuDropdown.classList.remove('active');
+                        gameMenuButton.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+
+            gameMenuContent.addEventListener('click', () => {
+                gameMenuDropdown.classList.remove('active');
+                gameMenuButton.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showHints = !showHints;
+                 // Re-render to update hint visibility. Dot/history reads from history state.
+                renderBoard([]);
+                toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+            });
+        }
+
+        if (restartDropdownLink) {
+            restartDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (animationInProgress || isViewingHistory) return;
+                initializeGame();
+            });
+        }
+
+        if(prevMoveBtn) {
+            prevMoveBtn.addEventListener('click', showPreviousMove);
+        }
+        if(nextMoveBtn) {
+            nextMoveBtn.addEventListener('click', showNextMove);
+        }
+
+        // Read difficulty parameter and set MINIMAX_DEPTH *before* initializing the game
+        const difficulty = getUrlParameter('difficulty').toLowerCase();
+        switch (difficulty) {
+            case 'easy':
+                MINIMAX_DEPTH = 1; // Very shallow for Easy - almost random but avoids immediate loss
+                break;
+            case 'hard':
+                MINIMAX_DEPTH = 6; // Deeper depth for Hard (warning: can be very slow)
+                break;
+            case 'medium': // Fall-through or default
+            default:
+                MINIMAX_DEPTH = 3; // Adjusted default depth slightly
+                break;
+        }
+        console.log(`Bot Difficulty: ${difficulty || 'medium'} (Depth: ${MINIMAX_DEPTH})`);
+
+
+        initializeGame(); // Initialize game *after* setting depth
+    });
+
+    function initializeBoard() {
+        const newBoard = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+        newBoard[3][3] = WHITE;
+        newBoard[3][4] = BLACK;
+        newBoard[4][3] = BLACK;
+        newBoard[4][4] = WHITE;
+        return newBoard;
+    }
+
+    function copyBoard(currentBoard) {
+         if (!currentBoard) return null;
+         return currentBoard.map(row => [...row]);
+    }
+
+    // captureGameState accepts the coordinates of the piece placed (or null for init/skips)
+    // Feedback is now added directly to skipHistory array
+    function captureGameState(lastPlacedCoords = null) {
+        if (currentHistoryIndex < gameHistory.length - 1) {
+            gameHistory = gameHistory.slice(0, currentHistoryIndex + 1);
+             isViewingHistory = false;
+             // When history is truncated, clear subsequent skip/feedback messages too
+             skipHistory = skipHistory.slice(0, gameHistory.length -1); // Match length
+             updateSkipHistoryDisplay();
+        }
+         // Store the board *after* the pieces have been updated
+        const currentState = {
+            board: copyBoard(board), // Capture the board state *after* the move/flip
+            scores: { ...scores },
+            currentPlayer: currentPlayer, // Store the *next* player as this state represents the board *before* the next turn
+            lastPlaced: lastPlacedCoords // Store the coordinates of the piece placed in the completed move
+             // Feedback is NOT stored here anymore
+        };
+        gameHistory.push(currentState);
+        currentHistoryIndex = gameHistory.length - 1;
+        updateHistoryButtonStates();
+    }
+
+    // applyGameState uses the stored 'lastPlaced' info when rendering
+    function applyGameState(state) {
+        board = copyBoard(state.board);
+        scores = { ...state.scores };
+        currentPlayer = state.currentPlayer;
+
+        updateScores(board);
+        updatePlayerDisplay();
+
+        // Re-render board based on historical state. Pass empty array for animation.
+        // renderBoard now reads lastPlaced from gameHistory[currentHistoryIndex].
+        renderBoard([]);
+
+        // Update skip history display to show the history view message or correct messages
+        updateSkipHistoryDisplay();
+        updateHistoryButtonStates(); // Update button state after applying
+    }
+
+    function updateHistoryButtonStates() {
+        if (!prevMoveBtn || !nextMoveBtn) return;
+
+        prevMoveBtn.disabled = currentHistoryIndex <= 0;
+        nextMoveBtn.disabled = currentHistoryIndex >= gameHistory.length - 1;
+
+        isViewingHistory = currentHistoryIndex < gameHistory.length - 1;
+
+        const boardElement = document.getElementById('board');
+        if (boardElement) {
+            boardElement.classList.toggle('history-view', isViewingHistory);
+        }
+    }
+
+
+    function showPreviousMove() {
+         if (animationInProgress || currentHistoryIndex <= 0) return;
+
+        currentHistoryIndex--;
+        applyGameState(gameHistory[currentHistoryIndex]);
+    }
+
+    function showNextMove() {
+         if (animationInProgress || currentHistoryIndex >= gameHistory.length - 1) return;
+
+        currentHistoryIndex++;
+        applyGameState(gameHistory[currentHistoryIndex]);
+
+        // If we return to the latest state (isViewingHistory becomes false), check for auto-skip
+        if (!isViewingHistory && !gameOver) {
+             // Add a small delay before checking for auto-skip to allow the board/feedback to render
+            setTimeout(async () => {
+                // Check again if state is still valid to proceed
+                if (!gameOver && !isViewingHistory && !animationInProgress) {
+                   await checkForAutoSkip(); // checkForAutoSkip calls renderBoard([]) which reads history for dot/feedback
+                    if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory) {
+                        botMove(); // botMove handles its own capture, render, and feedback display
+                    }
+                }
+            }, 100); // Short delay
+        }
+    }
+
+
+    function isValidMove(row, col, player) {
+        if (isViewingHistory) return false;
+
+        if (!board || row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE || board[row][col] !== EMPTY) return false;
+
+        for (let [dx, dy] of directions) {
+            let x = row + dx, y = col + dy, foundOpponent = false;
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (board[x][y] === EMPTY) break;
+                if (board[x][y] === player) {
+                    if (foundOpponent) return true;
+                    else break;
+                }
+                foundOpponent = true;
+                x += dx;
+                y += dy;
+            }
+        }
+        return false;
+    }
+
+     // getValidMoves also calculates flip counts for evaluation purposes
+    function getValidMoves(player, currentBoard = board) {
+        if (isViewingHistory && currentBoard === board) return [];
+
+        const validMoves = [];
+        if (!currentBoard) return validMoves;
+
+        currentBoard.forEach((row, rowIndex) =>
+            row.forEach((_, colIndex) => {
+                if (currentBoard[rowIndex][colIndex] === EMPTY) {
+                     const flips = getFlipCount(rowIndex, colIndex, player, currentBoard);
+                     if (flips > 0) {
+                          // Store move as [row, col, flipCount] - flipCount isn't strictly needed for basic minimax but can be useful
+                          validMoves.push([rowIndex, colIndex, flips]);
+                     }
+                }
+            })
+        );
+        return validMoves; // Returns moves as [row, col, flipCount]
+    }
+
+     // Helper to get the number of pieces flipped by a potential move
+    function getFlipCount(row, col, player, currentBoard) {
+        if (!currentBoard || row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE || currentBoard[row][col] !== EMPTY) {
+             return 0; // Must be an empty cell within bounds
+        }
+
+        let flipCount = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            let piecesToFlipInDirection = 0;
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (currentBoard[x][y] === EMPTY) break;
+                if (currentBoard[x][y] === player) {
+                    flipCount += piecesToFlipInDirection; // Found player's piece after opponent's, add collected flips
+                    break;
+                }
+                if (currentBoard[x][y] === opponent) {
+                    piecesToFlipInDirection++;
+                } else {
+                    break; // Found something unexpected
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+        return flipCount;
+    }
+
+
+     // flipPieces returns the pieces that were flipped *and* the one placed
+     // It also accepts a board state to operate on (for minimax)
+    function flipPieces(row, col, player, currentBoard) {
+        // Create a deep copy if not modifying the live board
+        const boardToModify = (currentBoard === board) ? board : copyBoard(currentBoard);
+
+        // Must place the piece first
+        if (boardToModify[row][col] !== EMPTY) {
+             console.error("flipPieces called on non-empty cell");
+             return {newBoard: boardToModify, flippedPieces: [], placedPiece: null}; // Should not happen with valid moves
+        }
+        boardToModify[row][col] = player; // Place the new piece
+
+        const placedPiece = {x: row, y: col}; // The piece that was just placed
+
+        const flippedPieces = []; // Only store pieces that were *flipped* here for the animation logic
+
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            const piecesToFlipInDirection = [];
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (boardToModify[x][y] === EMPTY) break;
+                if (boardToModify[x][y] === player) {
+                    if (piecesToFlipInDirection.length > 0) {
+                        // Found a sequence of opponent pieces ending in player's piece
+                        piecesToFlipInDirection.forEach(([fx, fy]) => {
+                            boardToModify[fx][fy] = player;
+                            // Only add to flippedPieces list if we are flipping the *actual* game board
+                             if (currentBoard === board) { // Check if operating on the main game board
+                                flippedPieces.push({x: fx, y: fy, original: opponent, new: player});
+                             }
+                        });
+                    }
+                    break; // Stop searching in this direction
+                }
+                if (boardToModify[x][y] === opponent) {
+                    piecesToFlipInDirection.push([x, y]);
+                } else {
+                    break; // Found something unexpected (like another empty cell)
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+        // Return flipped pieces for animation (only if operating on the live board),
+        // the resulting board state, and the placed piece coords for dot/history.
+         const finalBoardState = (currentBoard === board) ? board : boardToModify; // Return the modified copy or the original board
+        return {newBoard: finalBoardState, flippedPieces, placedPiece};
+    }
+
+
+    function updateScores(currentBoard) {
+        let blackCount = 0, whiteCount = 0;
+        if (!currentBoard) return;
+        currentBoard.forEach(row => row.forEach(cell => {
+            if (cell === BLACK) blackCount++;
+            if (cell === WHITE) whiteCount++;
+        }));
+        scores = {black: blackCount, white: whiteCount};
+        document.getElementById('black-score').textContent = `Black : ${scores.black}`;
+        document.getElementById('white-score').textContent = `White : ${scores.white}`;
+    }
+
+    function updatePlayerDisplay() {
+        const blackScoreDiv = document.getElementById('black-score');
+        const whiteScoreDiv = document.getElementById('white-score');
+
+        blackScoreDiv.classList.remove('current-player', 'black-turn-active');
+        whiteScoreDiv.classList.remove('current-player', 'white-turn-active');
+
+        if (!isViewingHistory) {
+            if (currentPlayer === HUMAN) {
+                blackScoreDiv.classList.add('current-player', 'black-turn-active');
+            } else { // BOT is WHITE
+                whiteScoreDiv.classList.add('current-player', 'white-turn-active');
+            }
+        }
+    }
+
+    function checkGameOver() {
+        if (isViewingHistory && !gameOver) return false;
+        if (gameOver) return true;
+
+        const humanMoves = getValidMoves(HUMAN); // Moves with flip counts
+        const botMoves = getValidMoves(BOT); // Moves with flip counts
+
+        if (humanMoves.length === 0 && botMoves.length === 0) {
+            gameOver = true;
+            winSound.play();
+            document.getElementById('game-over').innerHTML = `
+                <div class="game-over">Game Over! ${
+                scores.black > scores.white ? 'You Win!' :
+                    scores.white > scores.black ? 'Bot Wins!' : 'It\'s a Tie!'
+            }</div>`;
+             // Capture final state. Pass null for lastPlaced as game over isn't a move.
+             if (!gameHistory.length || !areBoardsEqual(gameHistory[gameHistory.length - 1].board, board)) {
+                  // Fallback capture, no lastPlaced piece
+                  captureAndStoreState(null);
+             }
+             // Add Game Over message to history *if* it wasn't added by a preceding move/skip
+             if (!skipHistory.length || skipHistory[skipHistory.length - 1].message !== "Game Over!") { // Check last message
+                 addHistoryMessage("Game Over!", ''); // Add to skipHistory
+             }
+
+            return true;
+        }
+        if(gameOver && (humanMoves.length > 0 || botMoves.length > 0)) {
+             gameOver = false;
+             document.getElementById('game-over').innerHTML = '';
+             // Clear game over messages/feedback that shouldn't be there if game is no longer over
+             // This is implicitly handled by clearing gameHistory/skipHistory on restart
+        }
+        return false;
+    }
+
+     // Helper function to check game over state on a given board (for minimax)
+    function isGameOver(currentBoard) {
+        // Check if either player has moves on this specific board state
+        const blackMoves = getValidMoves(BLACK, currentBoard); // getValidMoves returns moves with flip counts now
+        const whiteMoves = getValidMoves(WHITE, currentBoard);
+        return blackMoves.length === 0 && whiteMoves.length === 0;
+    }
+
+
+    function areBoardsEqual(board1, board2) {
+        if (!board1 || !board2 || board1.length !== board2.length || board1[0].length !== board2[0].length) return false;
+        for(let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                if (board1[i][j] !== board2[i][j]) return false;
+            }
+        }
+        return true;
+    }
+
+
+     // renderBoard handles adding/removing the 'last-move-piece' class based on history
+     // piecesToAnimate is ONLY used for triggering the CSS flip animation during a live move
+    function renderBoard(piecesToAnimate = []) {
+        if (!board || cells.length === 0 || currentHistoryIndex < 0) {
+             if (currentHistoryIndex >= 0) {
+                 console.error("Render aborted: Missing board, cells, or history state.");
+             }
+            return;
+        }
+
+        const validMoves = (!isViewingHistory && showHints && !gameOver) ? getValidMoves(currentPlayer) : []; // validMoves includes flip counts
+        const currentPlayerColorName = currentPlayer === HUMAN ? 'black' : 'white';
+
+         // Get the lastPlaced coords from the *current* history state for the dot
+        const stateLastPlaced = gameHistory[currentHistoryIndex]?.lastPlaced;
+        // Check if the piece at [r, c] is the last placed piece for the *current* history state
+        const isLastPlaced = (r, c) =>
+             stateLastPlaced && stateLastPlaced.x === r && stateLastPlaced.y === c;
+
+
+        board.forEach((row, rowIndex) => {
+            row.forEach((cell, colIndex) => {
+                const cellElement = cells[rowIndex][colIndex];
+                if (!cellElement) return;
+
+                // --- Update Hints ---
+                const isHint = validMoves.some(([x, y]) => x === rowIndex && y === colIndex);
+                cellElement.classList.toggle('hint', isHint);
+                if (isHint) {
+                     cellElement.dataset.player = currentPlayerColorName;
+                     cellElement.style.cursor = (!isViewingHistory && !animationInProgress) ? 'pointer' : 'default';
+                } else {
+                    delete cellElement.dataset.player;
+                    cellElement.style.cursor = isViewingHistory ? 'default' : 'pointer';
+                }
+
+
+                // --- Update Piece ---
+                let piece = cellElement.querySelector('.piece');
+                const targetPieceColor = cell; // cell contains BLACK, WHITE, or EMPTY
+                const targetPieceColorName = targetPieceColor === BLACK ? 'black' : (targetPieceColor === WHITE ? 'white' : null);
+
+
+                if (targetPieceColor !== EMPTY) {
+                    // This cell should have a piece
+                    if (!piece) {
+                        // No piece exists, create a new one with both faces
+                        piece = document.createElement('div');
+                        piece.className = 'piece';
+                        const blackFace = document.createElement('div');
+                        blackFace.className = 'piece-face black';
+                        const whiteFace = document.createElement('div');
+                        whiteFace.className = 'piece-face white';
+                        piece.appendChild(blackFace);
+                        piece.appendChild(whiteFace);
+                        cellElement.appendChild(piece);
+
+                        // Set the initial color class instantly (no animation on creation)
+                        piece.classList.add(`color-${targetPieceColorName}`);
+
+                    } else {
+                         // Piece exists, check if its color needs updating
+                         const currentPieceColorName = piece.classList.contains('color-black') ? 'black' : (piece.classList.contains('color-white') ? 'white' : null);
+
+                         if (currentPieceColorName !== targetPieceColorName) {
+                             // The piece's visual color is different from what the board state says it should be
+
+                             // Determine if this piece should *animate* based on the piecesToAnimate list passed to this render call.
+                             // piecesToAnimate contains ONLY the pieces that flipped in the latest move.
+                             const shouldAnimate = piecesToAnimate.some(p => p.x === rowIndex && p.y === colIndex && p.new === targetPieceColor && p.original !== EMPTY); // Only trigger animation for actual flips
+
+                              if (shouldAnimate && !isViewingHistory && animationInProgress) { // Trigger animation only during a live, non-history, animation-in-progress frame
+                                 // Trigger the CSS transition by changing the class.
+                                 if (currentPieceColorName) piece.classList.remove(`color-${currentPieceColorName}`);
+                                 piece.classList.add(`color-${targetPieceColorName}`);
+                              } else {
+                                  // No animation needed (history view, initial render, or a placed piece that didn't flip)
+                                  // Just set the final color instantly
+                                  if (currentPieceColorName) piece.classList.remove(`color-${currentPieceColorName}`);
+                                  piece.classList.add(`color-${targetPieceColorName}`);
+                              }
+                         }
+                    }
+
+                    // --- Update Last Move Dot ---
+                    // Add/remove the 'last-move-piece' class based on the lastPlaced info from the *current* history state
+                    piece.classList.toggle('last-move-piece', isLastPlaced(rowIndex, colIndex));
+
+                } else {
+                    // This cell should be empty
+                    if (piece) {
+                        piece.remove();
+                    }
+                    cellElement.classList.remove('last-move-cell-hint');
+                }
+            });
+        });
+    }
+
+
+    function switchPlayer() {
+        currentPlayer = (currentPlayer === HUMAN) ? BOT : HUMAN;
+    }
+
+    // Add a message/item to the skip history display
+    // Item can be a simple string (for skips) or an object { message: string, class: string } (for feedback)
+    function addHistoryMessage(message, className = '') {
+         skipHistory.push({ message: message, class: className });
+         updateSkipHistoryDisplay();
+    }
+
+
+    // Update skip history display to show items from the skipHistory array
+    function updateSkipHistoryDisplay() {
+        if (!skipHistoryList) return;
+        skipHistoryList.innerHTML = ''; // Clear existing entries
+
+        if (isViewingHistory) {
+             // Show a placeholder message when viewing history
+             const messageItem = document.createElement('li');
+             messageItem.textContent = "(Viewing historical state)";
+             messageItem.classList.add('history-view-message');
+             skipHistoryList.appendChild(messageItem);
+        } else {
+             // Display the actual collected history messages when at the latest state
+             skipHistory.forEach(item => {
+                const listItem = document.createElement('li');
+                 if (typeof item === 'string') { // Handle old skip messages (if any are kept) or simple strings
+                     listItem.textContent = item;
+                      listItem.classList.add('skip-message'); // Add default skip class
+                 } else if (item && item.message) { // Handle object { message, class }
+                    listItem.textContent = item.message;
+                     if (item.class) {
+                         // Add multiple classes from the class string
+                         const classesToAdd = item.class.split(' ').filter(c => c);
+                         if (classesToAdd.length > 0) {
+                            listItem.classList.add(...classesToAdd);
+                         }
+                     } else {
+                          // If no specific class provided but it's an object, maybe default to a neutral feedback style
+                          listItem.classList.add('feedback-okay'); // Or another default
+                     }
+                 } else {
+                     // Fallback for unexpected item format
+                     listItem.textContent = "(Unknown history item)";
+                 }
+                skipHistoryList.appendChild(listItem);
+             });
+             // Scroll to the bottom to show the latest message
+             skipHistoryList.scrollTop = skipHistoryList.scrollHeight;
+        }
+    }
+
+    function showSkipAnimation(playerColorName) {
+        const overlay = document.getElementById('skip-turn-overlay');
+        const playerMessageSpan = document.getElementById('skip-player-message');
+
+        playerMessageSpan.textContent = playerColorName;
+        overlay.classList.add('visible');
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                setTimeout(resolve, 300); // Wait briefly for fade-out transition
+            }, 1500); // Popup visible duration
+        });
+    }
+
+    // captureAndStoreState takes the coordinates of the piece placed in this move (or null for init/skips)
+    // Feedback is now added to skipHistory array *before* calling this
+    function captureAndStoreState(lastPlacedCoords = null) {
+        if (currentHistoryIndex < gameHistory.length - 1) {
+            gameHistory = gameHistory.slice(0, currentHistoryIndex + 1);
+             isViewingHistory = false;
+             // When history is truncated, clear subsequent skip/feedback messages too
+             skipHistory = skipHistory.slice(0, gameHistory.length); // Truncate skip history to match game state history length
+             updateSkipHistoryDisplay();
+        }
+         // Store the board *after* the pieces have been updated
+        const currentState = {
+            board: copyBoard(board), // Capture the board state *after* the move/flip
+            scores: { ...scores },
+            currentPlayer: currentPlayer, // Store the *next* player as this state represents the board *before* the next turn
+            lastPlaced: lastPlacedCoords // Store the coordinates of the piece placed in the completed move (null for init/skips)
+             // Feedback is NOT stored here anymore
+        };
+        gameHistory.push(currentState);
+        currentHistoryIndex = gameHistory.length - 1;
+        updateHistoryButtonStates();
+    }
+
+    // Removed displayMoveFeedback
+
+
+    async function autoSkipTurn() {
+        if (gameOver || isViewingHistory || animationInProgress) return;
+
+        animationInProgress = true;
+
+        const playerColorName = currentPlayer === HUMAN ? 'Black' : 'White';
+        // Add skip message to history display *before* animation
+        addHistoryMessage(`${playerColorName} had no valid moves!`, 'skip-message');
+
+
+        await showSkipAnimation(playerColorName);
+
+        switchPlayer();
+        updatePlayerDisplay();
+
+        const gameEndedAfterSkip = checkGameOver();
+
+        // Capture state for a skip - no piece was placed. Pass null for lastPlaced.
+        // Feedback message was already added to skipHistory
+        captureAndStoreState(null);
+
+
+        // Render board for the next player's turn (clears previous dot)
+        renderBoard([]); // Render reads history for dot
+
+
+        animationInProgress = false;
+
+        if (gameEndedAfterSkip) return;
+
+         if (!isViewingHistory) { // Only check if not viewing history
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip(); // checkForAutoSkip calls renderBoard([]) which reads history for dot
+                      if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory) {
+                         botMove(); // botMove handles its own capture, render, and feedback display
+                      }
+                 }
+             }, 50);
+        }
+    }
+
+
+    async function checkForAutoSkip() {
+        if (gameOver || isViewingHistory || animationInProgress) return false;
+
+        const validMoves = getValidMoves(currentPlayer); // Moves with flip counts
+
+        if (validMoves.length === 0) {
+             if (checkGameOver()) {
+                 return false; // Game over state handled by checkGameOver, no skip animation/feedback needed here
+             } else {
+                 await autoSkipTurn(); // autoSkipTurn handles its own capture and render
+                 return true;
+             }
+        }
+        // If there are valid moves, render the board to show potential hints.
+        // Pass empty array for animation pieces. renderBoard reads history for dot.
+        renderBoard([]);
+        return false;
+    }
+
+
+    // --- Minimax Algorithm ---
+
+    // Basic Evaluation Function
+    // A simple evaluation: Piece difference + bonus for corners
+    function evaluateBoard(currentBoard, player) {
+        let playerScore = 0;
+        let opponentScore = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                if (currentBoard[i][j] === player) {
+                    playerScore++;
+                } else if (currentBoard[i][j] === opponent) {
+                    opponentScore++;
+                }
+            }
+        }
+
+        // Corner Bonus (Corners are very strategic)
+        const corners = [[0, 0], [0, 7], [7, 0], [7, 7]];
+        corners.forEach(([r, c]) => {
+            if (currentBoard[r][c] === player) playerScore += 20; // Large bonus for corners
+            else if (currentBoard[r][c] === opponent) opponentScore += 20; // Large penalty for opponent corners
+        });
+
+         // More advanced heuristics could include stability, mobility, frontier discs, etc.
+         // Skipping for simplicity here.
+
+        return playerScore - opponentScore; // Return the score difference from the perspective of 'player'
+                                            // Minimax needs evaluation from the perspective of the player whose turn it is in the node
+    }
+
+    // Minimax function with Alpha-Beta Pruning
+    // isMaximizingPlayer indicates if the *current* player in this minimax node is the BOT (true) or HUMAN (false)
+    function minimax(currentBoard, depth, isMaximizingPlayer, alpha, beta) {
+        const player = isMaximizingPlayer ? BOT : HUMAN;
+        const opponent = isMaximizingPlayer ? HUMAN : BOT;
+
+        // Base cases
+        if (depth === 0 || isGameOver(currentBoard)) {
+            // Evaluate the final state from the BOT's perspective (the maximizing player)
+            return evaluateBoard(currentBoard, BOT);
+        }
+
+        // getValidMoves returns [row, col, flipCount]. We only need [row, col] for minimax simulation.
+        const validMoves = getValidMoves(player, currentBoard).map(move => [move[0], move[1]]);
+
+        // Handle skipping turns in minimax search
+        if (validMoves.length === 0) {
+             // Check if the opponent also has no moves (game over)
+            if (getValidMoves(opponent, currentBoard).length === 0) { // Need opponent's valid moves for the *current* board state in the recursive call
+                // Game is truly over from this state, evaluate the final board
+                 return evaluateBoard(currentBoard, BOT); // Evaluate from BOT's perspective
+            } else {
+                 // Current player skips, recursively call minimax for the other player
+                 return minimax(currentBoard, depth, !isMaximizingPlayer, alpha, beta);
+            }
+        }
+
+
+        if (isMaximizingPlayer) { // BOT's turn in the minimax tree
+            let maxEval = -Infinity;
+            for (const [r, c] of validMoves) {
+                // Simulate the move on a copy
+                const { newBoard } = flipPieces(r, c, player, copyBoard(currentBoard));
+
+                // Recursive call for the minimizing player (Human)
+                const evaluation = minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, evaluation);
+
+                // Alpha-Beta Pruning
+                alpha = Math.max(alpha, evaluation);
+                if (beta <= alpha) {
+                    break; // Beta cut-off
+                }
+            }
+            return maxEval;
+        } else { // Minimizing player (HUMAN's turn in the minimax tree)
+            let minEval = Infinity;
+            for (const [r, c] of validMoves) {
+                // Simulate the move on a copy
+                const { newBoard } = flipPieces(r, c, player, copyBoard(currentBoard));
+
+                // Recursive call for the maximizing player (Bot)
+                const evaluation = minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, evaluation);
+
+                // Alpha-Beta Pruning
+                beta = Math.min(beta, evaluation);
+                if (beta <= alpha) {
+                    break; // Alpha cut-off
+                }
+            }
+            return minEval;
+        }
+    }
+
+    // --- End Minimax Algorithm ---
+
+    // --- Move Evaluation Feedback Logic ---
+
+    // Helper to evaluate a specific move relative to the best possible move
+    // Returns a feedback message and a CSS class
+    // allPossibleMovesWithValues is an array of { move: [r, c], value: number } for the player whose turn it was
+    function getFeedback(chosenMoveCoords, allPossibleMovesWithValues, player) {
+        const [chosenR, chosenC] = chosenMoveCoords;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+        const playerType = player === HUMAN ? 'You' : 'Bot'; // Simpler "easy type word"
+
+        if (!allPossibleMovesWithValues || allPossibleMovesWithValues.length === 0) {
+             // Should not happen here if called after confirming valid moves
+             return { message: `${playerType} made a move.`, className: '' };
+        }
+
+        // Find the best value among all possible moves
+        let actualBestValue = -Infinity;
+         if (player === HUMAN) { // Human minimizes BOT's score, so we want the move that results in the LOWEST minimax value for BOT
+             actualBestValue = Math.min(...allPossibleMovesWithValues.map(m => m.value));
+         } else { // BOT maximizes its own score
+            actualBestValue = Math.max(...allPossibleMovesWithValues.map(m => m.value));
+         }
+
+
+        // Find the value of the specific move chosen
+        const chosenMoveEntry = allPossibleMovesWithValues.find(m => m.move[0] === chosenR && m.move[1] === chosenC);
+        const chosenMoveValue = chosenMoveEntry ? chosenMoveEntry.value : null;
+
+        if (chosenMoveValue === null) {
+             // This case should not happen if the move was valid, but as a safeguard
+             return { message: `${playerType} made a move. (Eval Error)`, className: '' };
+        }
+
+        // Calculate the difference relative to the perspective player's goal
+        let valueDifference = 0; // How much worse is the chosen move than the best?
+         if (player === HUMAN) { // Human wants to minimize BOT's score (value), so a higher value is worse
+             valueDifference = chosenMoveValue - actualBestValue;
+         } else { // BOT wants to maximize BOT's score (value), so a lower value is worse
+             valueDifference = actualBestValue - chosenMoveValue;
+         }
+
+
+        // Define thresholds for feedback (these might need tuning based on difficulty/heuristic)
+        // Thresholds are based on the *difference* from the optimal move value
+        const thresholds = {
+             optimal: 0,     // Exactly the best move (difference <= 0)
+             good: 2,       // Within 2 points of the best (difference <= 2)
+             okay: 5        // Within 5 points of the best (difference <= 5)
+             // Anything worse is 'Suboptimal'
+        };
+
+        // Check for corner capture (very good strategic move)
+         if (isCorner(chosenR, chosenC)) {
+              // Label corners as optimal if their value isn't significantly worse than the minimax best (shouldn't happen much)
+              if (valueDifference <= thresholds.good) { // If corner value is close to the overall best
+                   return { message: `${playerType} took a Corner! Nice!`, className: `${playerType === 'You' ? 'optimal' : 'bot optimal'}` };
+              } else {
+                   // A corner move that is still suboptimal according to minimax - unlikely but possible with limited depth/heuristic
+                  return { message: `${playerType} took a Corner, but it was tricky!`, className: `${playerType === 'You' ? 'risky' : 'bot risky'}` };
+              }
+         }
+
+        // Check for notoriously bad moves (C-squares)
+         if (isCSquare(chosenR, chosenC)) {
+              // Check if placing here allows the opponent to take a corner on their *next* turn
+               const nextBoard = flipPieces(chosenR, chosenC, player, copyBoard(board)).newBoard;
+               const opponentNextMoves = getValidMoves(opponent, nextBoard);
+               let opponentCanTakeCorner = false;
+               const corners = [[0, 0], [0, 7], [7, 0], [7, 7]];
+               for(const [or, oc] of opponentNextMoves) {
+                    if(isCorner(or, oc)) {
+                         opponentCanTakeCorner = true;
+                         break;
+                    }
+               }
+               if (opponentCanTakeCorner) {
+                    return { message: `${playerType} placed here - careful, gives opponent a corner!`, className: `${playerType === 'You' ? 'risky' : 'bot risky'}` };
+               }
+              // If it's a C-square but doesn't immediately lose a corner, still might be suboptimal.
+              // Let the valueDifference determine the rating if it's not 'risky'.
+         }
+
+
+        // General evaluation based on value difference if not a special case
+        let message;
+        let className;
+
+        if (valueDifference <= thresholds.optimal) {
+            message = `${playerType} played a Great Move!`;
+            className = 'optimal';
+        } else if (valueDifference <= thresholds.good) {
+            message = `${playerType} played a Good Move.`;
+            className = 'good';
+        } else if (valueDifference <= thresholds.okay) {
+            message = `${playerType} played an Okay Move.`;
+            className = 'okay';
+        } else {
+            message = `${playerType} played a Less Good Move.`; // Simpler wording
+            className = 'suboptimal';
+        }
+
+         // Add 'bot' class if it was the bot's move
+         if (player === BOT) {
+             className = 'bot ' + className;
+         }
+
+         return { message: message, className: className };
+    }
+
+    // --- End Move Evaluation Feedback Logic ---
+
+
+    async function handleMove(row, col) {
+        if (gameOver || animationInProgress || isViewingHistory || !isValidMove(row, col, currentPlayer)) {
+            return;
+        }
+
+        animationInProgress = true; // Block interaction
+
+        // --- Feedback Step 1: Calculate possible moves and their values *before* the move ---
+        // This is needed to evaluate the human's choice.
+        const humanValidMovesWithFlips = getValidMoves(HUMAN); // Get all valid moves for HUMAN with flip counts
+        let allHumanMovesWithValues = [];
+
+        // Calculate minimax value for each possible human move's resulting state
+         for (const move of humanValidMovesWithFlips) { // moves are [r, c, flipCount]
+              const [r, c] = [move[0], move[1]];
+              // Simulate the move on a copy to get the resulting board state
+             const { newBoard: simulatedBoard } = flipPieces(r, c, HUMAN, copyBoard(board));
+             // Evaluate the resulting state from the BOT's perspective (as minimax returns value for BOT)
+              const value = minimax(simulatedBoard, MINIMAX_DEPTH - 1, true, -Infinity, Infinity);
+             // Store the move coords and the minimax value of the *resulting* state (from BOT's perspective)
+             allHumanMovesWithValues.push({ move: [r, c], value: value });
+         }
+        // --- End Feedback Step 1 ---
+
+
+        // Perform the actual move on the global board
+        const { newBoard, flippedPieces, placedPiece } = flipPieces(row, col, currentPlayer, board);
+
+        placeSound.play();
+
+        board = newBoard; // Update the global board state immediately
+
+        // Render the board with the flips (animation)
+        // Pass the flippedPieces list to trigger the animation.
+        renderBoard(flippedPieces); // Trigger animation
+
+        // Wait for the piece flip animation to finish
+        await new Promise(resolve => setTimeout(resolve, 350)); // Match CSS transition + slight buffer
+
+        // Update scores based on the final state after flips
+        updateScores(board);
+
+        // --- Feedback Step 2: Generate Feedback Message for Human Move ---
+        let feedbackMessage = null;
+        let feedbackClass = '';
+        if (placedPiece) { // Ensure a piece was actually placed
+             // Calculate feedback based on the chosen move vs the best possible move we found earlier
+             const feedback = getFeedback([placedPiece.x, placedPiece.y], allHumanMovesWithValues, HUMAN);
+             feedbackMessage = feedback.message;
+             feedbackClass = feedback.className;
+             // Add feedback message to the history display
+             addHistoryMessage(feedbackMessage, feedbackClass);
+        }
+        // --- End Feedback Step 2 ---
+
+
+        // Switch to the next player *before* capturing the state
+        switchPlayer();
+        updatePlayerDisplay();
+
+        const gameEndedAfterMove = checkGameOver();
+
+        // Capture the state *after* the move, score update, and player switch.
+        // Store the placedPiece coords with this state for history. Feedback is already added to skipHistory.
+        captureAndStoreState(placedPiece); // Do not pass feedback here
+
+
+        // Re-render board for the next player's turn.
+        // Pass an empty array for animation pieces.
+        // The dot and history messages will be rendered based on the info stored in the history state (the one we just saved) and skipHistory.
+        renderBoard([]); // Clears animation, relies on history for dot
+
+
+        animationInProgress = false;
+
+        if (gameEndedAfterMove) return;
+
+        if (!isViewingHistory) { // Only trigger bot move if game is not over and not viewing history
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip(); // checkForAutoSkip calls renderBoard([]) which reads history for dot
+                      if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory) {
+                         botMove(); // botMove handles its own capture, render, and feedback display
+                      }
+                 }
+             }, 50);
+        }
+    }
+
+    async function botMove() {
+        if (gameOver || animationInProgress || isViewingHistory || currentPlayer !== BOT) return;
+
+        animationInProgress = true; // Block interaction
+
+        const validMoves = getValidMoves(BOT); // getValidMoves returns moves with flip counts now
+
+        if (validMoves.length > 0) {
+            let bestMove = null;
+            let maxEval = -Infinity;
+
+            // Simulate bot thinking delay - DECREASED THIS VALUE
+             await new Promise(resolve => setTimeout(resolve, 250)); // Reduced delay to 250ms
+
+            // Find the best move using Minimax
+            let allBotMovesWithValues = []; // Store moves and their values to pick the best AND evaluate the chosen move
+            for (const move of validMoves) { // moves are [r, c, flipCount]
+                 const [row, col] = [move[0], move[1]];
+                 // Simulate the move on a copy to get the resulting board state
+                const { newBoard: simulatedBoard } = flipPieces(row, col, BOT, copyBoard(board));
+
+                // Get the minimax value for the resulting state (from BOT's perspective)
+                // Start alpha-beta pruning with initial values
+                const evaluation = minimax(simulatedBoard, MINIMAX_DEPTH - 1, false, -Infinity, Infinity); // Evaluate result assuming Human plays optimally next (minimizing BOT)
+
+                // Store move and its evaluation
+                allBotMovesWithValues.push({ move: [row, col], value: evaluation });
+
+                // Update best move found so far
+                if (evaluation > maxEval) {
+                    maxEval = evaluation;
+                    bestMove = [row, col];
+                }
+            }
+
+            // If multiple moves have the same maxEval, pick one (e.g., the first one found, which is handled by the loop)
+            // Or add logic to pick randomly among equally optimal moves if desired.
+
+            // Execute the chosen best move on the actual game board
+            const [row, col] = bestMove;
+            // Pass the actual game board to flipPieces to get flippedPieces for animation
+            const { newBoard, flippedPieces, placedPiece } = flipPieces(row, col, BOT, board); // Perform the actual move
+
+            placeSound.play(); // Play sound
+
+            board = newBoard; // Update board state
+
+            renderBoard(flippedPieces); // Render with flips (animation)
+
+            await new Promise(resolve => setTimeout(resolve, 350)); // Wait for animation
+
+            updateScores(board);
+
+            // --- Feedback Step 3: Generate Feedback Message for Bot Move ---
+            let feedbackMessage = null;
+            let feedbackClass = '';
+             if (placedPiece) {
+                 // Bot chose the move with the highest minimax value.
+                 // Use the getFeedback function to generate a message based on the move type (corner, C-square)
+                 // The 'optimal' check within getFeedback will confirm it was the best found by minimax.
+                 const feedback = getFeedback([placedPiece.x, placedPiece.y], allBotMovesWithValues, BOT);
+                 feedbackMessage = feedback.message; // Use the message generated by getFeedback
+                 feedbackClass = feedback.className; // Use the class generated by getFeedback
+
+                 // Add feedback message to the history display
+                 addHistoryMessage(feedbackMessage, feedbackClass);
+             }
+            // --- End Feedback Step 3 ---
+
+
+            switchPlayer(); // Switch to HUMAN
+            updatePlayerDisplay();
+
+            const gameEndedAfterBotMove = checkGameOver();
+
+            // Capture state after bot move, store placed piece coords. Feedback is already in skipHistory.
+            captureAndStoreState(placedPiece);
+
+
+            // Re-render board for HUMAN's turn (clears bot's dot, shows human's if applicable in history)
+            // Pass empty array for animation pieces. Render reads history for dot.
+            renderBoard([]);
+
+            animationInProgress = false; // Re-enable interaction
+
+            if (gameEndedAfterBotMove) return;
+
+            // After bot move, check if the next player (HUMAN) must skip
+            if (!isViewingHistory) { // Only check if not viewing history
+                 await checkForAutoSkip(); // This will call renderBoard([]) which reads history for dot
+            }
+
+        } else { // Bot has no moves
+            animationInProgress = false; // Release lock before skip
+            // autoSkipTurn will handle its own capture and render (with null lastPlaced and feedback)
+            await autoSkipTurn();
+        }
+    }
+
+
+    // createBoardElements: Creates the empty DOM grid. Piece elements added/removed by renderBoard.
+    function createBoardElements() {
+        const boardElement = document.getElementById('board');
+        if (!boardElement) {
+            console.error("Board element #board not found!");
+            return;
+        }
+        boardElement.innerHTML = '';
+        cells = [];
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            const rowCells = [];
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                cellElement.addEventListener('click', () => handleMove(i, j));
+                boardElement.appendChild(cellElement);
+                rowCells.push(cellElement);
+            }
+            cells.push(rowCells);
+        }
+    }
+
+
+
+
+
+for (let row = 0; row < 8; row++) {
+  for (let col = 0; col < 8; col++) {
+    const cell = document.createElement("div");
+    cell.classList.add("board-cell");
+
+    // ADD CORNER DOTS (A1, H1, A8, H8)
+    if (
+      (row === 0 && col === 0) ||     // A1
+      (row === 0 && col === 7) ||     // H1
+      (row === 7 && col === 0) ||     // A8
+      (row === 7 && col === 7)        // H8
+    ) {
+      cell.classList.add("corner-dot");
+    }
+
+    // baki ka cell setup code...
+    board.appendChild(cell);
+  }
+}
+
+
+
+
+
+
+    function initializeGame() {
+        gameOver = false;
+        animationInProgress = false;
+        isViewingHistory = false; // Ensure history view is off
+
+        currentPlayer = HUMAN; // Start with Human (Black)
+
+        board = initializeBoard();
+        scores = {black: 2, white: 2};
+        skipHistory = []; // Clear skip history
+
+        gameHistory = [];
+        currentHistoryIndex = -1;
+
+        // Capture initial state. No piece was placed by a move, so lastPlaced is null. No feedback.
+        // Add an initial message for the start of the game to skipHistory.
+         addHistoryMessage("Game Start! Good Luck!", ''); // Add to skipHistory
+        captureAndStoreState(null); // Capture initial game state
+
+
+        createBoardElements();
+        updateScores(board);
+        updatePlayerDisplay();
+        // updateSkipHistoryDisplay is called by addHistoryMessage
+
+        document.getElementById('game-over').innerHTML = '';
+
+        // Render the initial board state. Pass empty array for animation pieces.
+        // renderBoard reads history state 0 for dots (null).
+        renderBoard([]);
+
+        updateHistoryButtonStates();
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+        }
+
+        // Initial check for auto-skip after a slight delay
+         setTimeout(async () => {
+            if (!gameOver && !isViewingHistory && !animationInProgress) {
+                 await checkForAutoSkip(); // checkForAutoSkip calls renderBoard([]) which reads history for dot
+                 if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory) {
+                      botMove(); // botMove handles its own capture, render, and feedback display
+                 }
+            }
+        }, 100);
+    }
+
+    // initializeGame is called from DOMContentLoaded.
+</script>
+</body>
+</html>
