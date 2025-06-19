@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Settings</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+          integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"/>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Embedded styles - Keep these as they are specific to the settings layout */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(to right, var(--background-color-1, #1f372b), var(--background-color-2, #112719));
+            color: var(--text-color, white);
+            margin: 0;
+            padding: 0;
+             /* Ensure footer doesn't overlap content if screen is short */
+            padding-bottom: 60px; /* Add padding for fixed footer height */
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .settings-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            border-radius: 12px;
+            background-color: rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            width: 80%;
+            max-width: 600px;
+            flex-shrink: 0; /* Prevent shrinking if content is large */
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 10px; /* Space between label and input/select */
+        }
+
+        .setting-row label {
+            font-size: 1.2rem;
+            margin-right: 1rem; /* Keep margin, but flex-wrap + gap helps */
+             flex-shrink: 0; /* Prevent label from shrinking */
+        }
+
+        .setting-row input[type="range"],
+        .setting-row select {
+            flex-grow: 1; /* Allow input/select to take available space */
+             max-width: 60%; /* Limit max width */
+        }
+         .setting-row span { /* For volume display */
+             flex-shrink: 0; /* Prevent text from shrinking */
+             min-width: 40px; /* Ensure space for text */
+         }
+
+
+        input[type="range"] {
+            cursor: pointer;
+        }
+
+         /* Button styles are primarily in style.css now */
+        button#back-to-menu {
+            padding: 14px 28px; /* Specific padding for this button */
+            font-size: 1.1rem;
+        }
+
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 1rem 0;
+            text-align: center;
+            color: var(--skip-history-text-color, #9ca3af); /* Use variable */
+            font-size: 0.9rem;
+            background-color: var(--background-color-2, rgba(0, 0, 0, 0.5)); /* Use variable */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            z-index: 100; /* Ensure footer is above other content */
+        }
+         footer a {
+            color: inherit !important; /* Ensure link color inherits */
+            text-decoration: none;
+         }
+
+
+        /* Theme selection styles */
+        #theme-select {
+            padding: 8px;
+            font-size: 1rem;
+            border-radius: 5px;
+            /* Use theme variables for styling */
+            border: 1px solid var(--text-color, #4a5568);
+            background-color: var(--background-color-1, #2d3748);
+            color: var(--text-color, white);
+            cursor: pointer;
+        }
+
+        #theme-select:focus {
+            outline: none;
+            box-shadow: 0 0 5px var(--button-color, rgba(52, 211, 153, 0.5)); /* Highlight on focus using theme color */
+        }
+
+         /* Responsive adjustments for settings page */
+         @media (max-width: 600px) {
+              h1 {
+                  font-size: 2.5rem;
+              }
+               .settings-container {
+                   padding: 1.5rem;
+                   gap: 1rem;
+               }
+              .setting-row {
+                   flex-direction: column; /* Stack label and input/select */
+                   align-items: flex-start;
+                   gap: 5px;
+              }
+               .setting-row label {
+                  font-size: 1.1rem;
+                   margin-right: 0;
+               }
+              .setting-row input[type="range"],
+              .setting-row select {
+                  max-width: 100%; /* Allow full width */
+              }
+             button#back-to-menu {
+                 padding: 12px 24px;
+                 font-size: 1rem;
+             }
+         }
+
+         @media (max-width: 400px) {
+              h1 {
+                  font-size: 1.8rem;
+              }
+               .settings-container {
+                   padding: 1rem;
+                   gap: 0.8rem;
+               }
+               .setting-row label {
+                   font-size: 1rem;
+               }
+               button#back-to-menu {
+                   padding: 10px 20px;
+                   font-size: 0.9rem;
+               }
+         }
+
+    </style>
+</head>
+<body>
+<h1>Othello - Settings</h1>
+
+<div class="settings-container">
+
+    <div class="setting-row">
+        <label for="music-volume">Music Volume:</label>
+        <input type="range" id="music-volume" min="0" max="100" value="50">
+        <span id="volume-display">50%</span>
+    </div>
+
+    <div class="setting-row">
+        <label for="theme-select">Select Color Theme:</label>
+        <select id="theme-select">
+            <option value="default">Default</option>
+            <option value="dark">Dark</option>
+            <option value="forest">Forest</option>
+            <option value="grapefruit">Grapefruit</option>
+            <option value="bittersweet">Bittersweet</option>
+            <option value="sunflower">Sunflower</option>
+            <option value="grass">Grass</option>
+            <option value="mint">Mint</option>
+            <option value="aqua">Aqua</option>
+            <option value="bluejeans">Blue Jeans</option>
+            <option value="lavenderpurple">Lavender (Purple)</option>
+            <option value="lavenderpink">Lavender (Pink)</option>
+            <option value="skintone">Skin Tone</option>
+            <option value="lightgray">Light Gray</option>
+            <option value="darkgray">Dark Gray</option>
+
+        </select>
+    </div>
+
+
+    
+
+    <button id="back-to-menu">Back to Menu</button>
+</div>
+
+<footer>
+    <a href="https://www.instagram.com/sidonstudio/">Developed by @SidonStudio</a>
+</footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const musicVolume = document.getElementById('music-volume');
+        const volumeDisplay = document.getElementById('volume-display');
+        const themeSelect = document.getElementById('theme-select');
+        const backToMenuButton = document.getElementById('back-to-menu');
+
+        // Define color themes - Ensure this object is consistent across all HTML files
+        const colorThemes = {
+            default: {
+                'background-color-1': '#1f372b',
+                'background-color-2': '#112719',
+                'text-color': '#ffffff',
+                'button-color': '#34d399',
+                'button-text-color': '#1f2937',
+                'button-hover-color': '#10b981',
+                'board-color': '#059669',
+                'scoreboard-text-color': '#ffffff',
+                'skip-history-heading-color': '#ffffff',
+                'skip-history-text-color': '#9ca3af',
+                'piece-black-dark': '#000',
+                'piece-black-light': '#444',
+                'piece-white-dark': '#ddd',
+                'piece-white-light': '#fff',
+                'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff',
+                 'timer-bg-color': 'rgba(0, 0, 0, 0.2)',
+                 'timer-border-color': 'rgba(0, 0, 0, 0.3)',
+                 'timer-low-color': '#ef4444'
+            },
+            dark: {
+                'background-color-1': '#333333',
+                'background-color-2': '#222222',
+                'text-color': '#eeeeee',
+                'button-color': '#555555',
+                'button-text-color': '#ffffff',
+                'button-hover-color': '#777777',
+                'board-color': '#444444',
+                'scoreboard-text-color': '#eeeeee',
+                'skip-history-heading-color': '#eeeeee',
+                'skip-history-text-color': '#9ca3af',
+                'piece-black-dark': '#111',
+                'piece-black-light': '#555',
+                'piece-white-dark': '#ccc',
+                'piece-white-light': '#eee',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#eeeeee',
+                 'timer-bg-color': 'rgba(0, 0, 0, 0.2)',
+                 'timer-border-color': 'rgba(0, 0, 0, 0.3)',
+                 'timer-low-color': '#ef4444'
+            },
+            forest: {
+                'background-color-1': '#38593b',
+                'background-color-2': '#2b3a2d',
+                'text-color': '#d0e8ca',
+                'button-color': '#6b8e23',
+                'button-text-color': '#ffffff',
+                'button-hover-color': '#8fbc5a',
+                'board-color': '#4c6d4f',
+                'scoreboard-text-color': '#d0e8ca',
+                'skip-history-heading-color': '#d0e8ca',
+                'skip-history-text-color': '#9ca3af',
+                 'piece-black-dark': '#000',
+                'piece-black-light': '#333',
+                'piece-white-dark': '#c0d9bc',
+                'piece-white-light': '#e0f9dc',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#d0e8ca',
+                 'timer-bg-color': 'rgba(0, 0, 0, 0.2)',
+                 'timer-border-color': 'rgba(0, 0, 0, 0.3)',
+                 'timer-low-color': '#ff0000'
+            },
+
+             grapefruit: {
+                 'background-color-1': '#EC5564', 'background-color-2': '#D94452',
+                 'text-color': '#ffffff', 'button-color': '#F76D82', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FC8370', 'board-color': '#EC5564', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             },
+             bittersweet: {
+                 'background-color-1': '#FB6D51', 'background-color-2': '#E8563F',
+                 'text-color': '#ffffff', 'button-color': '#FC8370', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#fb6d51', 'board-color': '#FB6D51', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             },
+             sunflower: {
+                 'background-color-1': '#FECD57', 'background-color-2': '#F5BA45',
+                 'text-color': '#1f2937', 'button-color': '#FCD277', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FECD57', 'board-color': '#FECD57', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             grass: {
+                 'background-color-1': '#9ED36A', 'background-color-2': '#8AC054',
+                 'text-color': '#1f2937', 'button-color': '#84E080', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#62DDBD', 'board-color': '#9ED36A', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             mint: {
+                 'background-color-1': '#46CEAD', 'background-color-2': '#35BB9B',
+                 'text-color': '#ffffff', 'button-color': '#62DDBD', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#84E080', 'board-color': '#46CEAD', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             },
+             aqua: {
+                 'background-color-1': '#5EC0C0', 'background-color-2': '#40A9A9',
+                 'text-color': '#ffffff', 'button-color': '#7BC9C9', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#5a9ed0', 'board-color': '#5EC0C0', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             },
+             bluejeans: {
+                 'background-color-1': '#5E9CEA', 'background-color-2': '#4B89DA',
+                 'text-color': '#ffffff', 'button-color': '#73B1F4', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#3282b8', 'board-color': '#5E9CEA', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             },
+             lavenderpurple: {
+                 'background-color-1': '#AC92EA', 'background-color-2': '#967ADA',
+                 'text-color': '#1f2937', 'button-color': '#B3A5EF', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#F299CE', 'board-color': '#AC92EA', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             lavenderpink: {
+                 'background-color-1': '#EB87BF', 'background-color-2': '#D670AC',
+                 'text-color': '#1f2937', 'button-color': '#F299CE', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#B3A5EF', 'board-color': '#EB87BF', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             skintone: {
+                 'background-color-1': '#F0C8A5', 'background-color-2': '#E4B693',
+                 'text-color': '#1f2937', 'button-color': '#F4D0B5', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#FC8370', 'board-color': '#F0C8A5', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             lightgray: {
+                 'background-color-1': '#E5E8EC', 'background-color-2': '#CBD0D8',
+                 'text-color': '#1f2937', 'button-color': '#F4F6F9', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#A9B1BC', 'board-color': '#E5E8EC', 'scoreboard-text-color': '#1f2937',
+                 'skip-history-heading-color': '#1f2937', 'skip-history-text-color': '#444444',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#1f2937', 'timer-bg-color': 'rgba(255,255,255,0.3)', 'timer-border-color': 'rgba(255,255,255,0.4)', 'timer-low-color': '#ef4444'
+             },
+             darkgray: {
+                 'background-color-1': '#646C77', 'background-color-2': '#424953',
+                 'text-color': '#ffffff', 'button-color': '#A9B1BC', 'button-text-color': '#1f2937',
+                 'button-hover-color': '#E5E8EC', 'board-color': '#646C77', 'scoreboard-text-color': '#ffffff',
+                 'skip-history-heading-color': '#ffffff', 'skip-history-text-color': '#cccccc',
+                 'piece-black-dark': '#000', 'piece-black-light': '#444', 'piece-white-dark': '#ddd', 'piece-white-light': '#fff',
+                 'last-move-dot-color': '#ff0000',
+                 'timer-text-color': '#ffffff', 'timer-bg-color': 'rgba(0,0,0,0.2)', 'timer-border-color': 'rgba(0,0,0,0.3)', 'timer-low-color': '#ff0000'
+             }
+        };
+
+        // Load settings from localStorage
+        function loadSettings() {
+            const volume = localStorage.getItem('music-volume') || '50';
+            const theme = localStorage.getItem('color-theme') || 'default';
+
+            musicVolume.value = volume;
+            volumeDisplay.textContent = volume + '%';
+             // Music volume control not implemented in game, this just shows value.
+
+            // Ensure the loaded theme is still in the available options.
+            // If not, default to 'default'. This handles cases where a theme is removed.
+            let effectiveTheme = theme;
+            if (!colorThemes.hasOwnProperty(theme)) {
+                const validThemes = Object.keys(colorThemes);
+                const firstValidTheme = validThemes.length > 0 ? validThemes[0] : 'default';
+                 console.warn(`Loaded theme "${theme}" not found. Applying default theme "${firstValidTheme}".`);
+                 effectiveTheme = firstValidTheme;
+                 localStorage.setItem('color-theme', effectiveTheme); // Save the corrected theme
+            }
+
+            themeSelect.value = effectiveTheme;  // Set selected option
+
+            applyTheme(effectiveTheme);
+        }
+
+        // Apply a specific theme
+        function applyTheme(themeName) {
+            const theme = colorThemes[themeName];
+            if (theme) {
+                for (const [variable, value] of Object.entries(theme)) {
+                    document.documentElement.style.setProperty(`--${variable}`, value);
+                }
+            } else {
+                console.error(`Theme "${themeName}" not found!`);
+            }
+        }
+
+        // Save settings to localStorage and apply the selected theme
+        function saveSettings() {
+            localStorage.setItem('music-volume', musicVolume.value);
+            localStorage.setItem('color-theme', themeSelect.value);
+            applyTheme(themeSelect.value);
+            // Notify other tabs/windows about the theme change
+            // This uses the native storage event which is listened for in game pages.
+        }
+
+        // Load settings when the settings page is loaded
+        loadSettings();
+
+        // Add event listeners
+        musicVolume.addEventListener('input', () => {
+            volumeDisplay.textContent = musicVolume.value + '%';
+             // Volume is saved immediately on input for live update
+            localStorage.setItem('music-volume', musicVolume.value);
+        });
+
+        themeSelect.addEventListener('change', () => {
+            saveSettings(); // Save both volume and theme on theme change
+        });
+
+        backToMenuButton.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+         // The native storage event listener is in the other HTML files
+         // (index.html, othelloplr.html, othellobot.html) and is responsible
+         // for updating those pages when localStorage changes here.
+    });
+</script>
+</body>
+</html>

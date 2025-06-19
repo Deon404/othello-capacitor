@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">othello</string>
+    <string name="title_activity_main">othello</string>
+    <string name="package_name">com.sidonstudio.othelloup</string>
+    <string name="custom_url_scheme">com.sidonstudio.othelloup</string>
+</resources>
