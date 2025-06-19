@@ -1,0 +1,10 @@
+{
+  "webDir": "www",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  },
+  "appId": "com.sidon.othello",
+  "appName": "othello"
+}
