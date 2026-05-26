@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" role="img" aria-label="Cracked Void Core Disc">
+  <title>Cracked Void Core Disc</title>
+  <desc>Deep black void disc fractured by a branching network of bright cyan-white energy cracks radiating from a glowing core, with soft glow halos and a glossy top-left specular highlight.</desc>
+
+  <defs>
+    <!-- Void body: jet black with a faint indigo lift toward the upper-left -->
+    <radialGradient id="cv-body" cx="0.40" cy="0.32" r="0.85">
+      <stop offset="0"    stop-color="#15102a"/>
+      <stop offset="0.30" stop-color="#0a0518"/>
+      <stop offset="0.7"  stop-color="#03020a"/>
+      <stop offset="1"    stop-color="#000000"/>
+    </radialGradient>
+
+    <!-- Central energy core glow: hot white center to electric cyan -->
+    <radialGradient id="cv-core" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.10" stop-color="#d8f6ff" stop-opacity="0.95"/>
+      <stop offset="0.30" stop-color="#5fd8ff" stop-opacity="0.55"/>
+      <stop offset="0.60" stop-color="#1e7dc8" stop-opacity="0.20"/>
+      <stop offset="1"    stop-color="#0a2858" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Rim shading: subtle vignette so the disc reads cleanly on any felt -->
+    <radialGradient id="cv-rim-shade" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.78" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.93" stop-color="#000000" stop-opacity="0.65"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0.95"/>
+    </radialGradient>
+
+    <!-- Main glossy specular highlight -->
+    <radialGradient id="cv-spec-main" cx="0.30" cy="0.22" r="0.30">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.70"/>
+      <stop offset="0.45" stop-color="#d8f0ff" stop-opacity="0.22"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ground shadow under the disc -->
+    <radialGradient id="cv-shadow" cx="0.5" cy="0.55" r="0.5">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="0.85" stop-color="#000000" stop-opacity="0.12"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft outer glow filter for the wide crack halo -->
+    <filter id="cv-glow-wide" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <!-- Tighter glow filter for mid layer -->
+    <filter id="cv-glow-mid" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+
+    <!-- Crack network path reused across the 3 glow layers -->
+    <symbol id="cv-cracks" overflow="visible">
+      <!-- 8 main branching cracks radiating from (160,160) -->
+      <path d="M160,160 L176,140 L188,112 L196,86 L208,68 M188,112 L172,98 L160,80 M196,86 L214,76"/>
+      <path d="M160,160 L188,158 L218,164 L246,158 L262,168 M218,164 L232,142 L246,128"/>
+      <path d="M160,160 L172,184 L188,212 L198,238 L210,260 M188,212 L212,228 L228,250"/>
+      <path d="M160,160 L158,188 L150,218 L156,248 M150,218 L132,236 L120,254"/>
+      <path d="M160,160 L142,182 L120,208 L94,224 L74,240 M120,208 L98,196 L84,180"/>
+      <path d="M160,160 L132,162 L102,158 L72,166 L58,180 M102,158 L88,138 L70,124"/>
+      <path d="M160,160 L142,140 L122,118 L106,92 L92,72 M122,118 L100,108 L84,98"/>
+      <path d="M160,160 L162,132 L155,104 L160,76 L154,58 M155,104 L176,86 L192,72"/>
+      <!-- Tiny secondary fissures around the core -->
+      <path d="M160,160 L150,148 L138,142 M160,160 L172,148 L184,140 M160,160 L150,172 L138,178 M160,160 L172,172 L184,180"/>
+    </symbol>
+
+    <clipPath id="cv-clip">
+      <circle cx="160" cy="160" r="113"/>
+    </clipPath>
+  </defs>
+
+  <!-- soft ground shadow -->
+  <ellipse cx="160" cy="175" rx="120" ry="118" fill="url(#cv-shadow)"/>
+
+  <!-- main void body -->
+  <circle cx="160" cy="160" r="115" fill="url(#cv-body)"/>
+
+  <!-- Cracks + core, clipped to the disc -->
+  <g clip-path="url(#cv-clip)">
+    <!-- Central energy core halo (sits beneath the cracks) -->
+    <circle cx="160" cy="160" r="55" fill="url(#cv-core)"/>
+
+    <!-- Wide outer crack glow (most blurred, electric cyan) -->
+    <g filter="url(#cv-glow-wide)"
+       stroke="#4ec8ff" stroke-opacity="0.85" fill="none"
+       stroke-linecap="round" stroke-linejoin="round" stroke-width="6">
+      <use href="#cv-cracks"/>
+    </g>
+
+    <!-- Mid crack glow (less blurred, brighter cyan) -->
+    <g filter="url(#cv-glow-mid)"
+       stroke="#9eebff" stroke-opacity="0.95" fill="none"
+       stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4">
+      <use href="#cv-cracks"/>
+    </g>
+
+    <!-- Hot crack cores (sharp, bright white) -->
+    <g stroke="#ffffff" stroke-opacity="0.98" fill="none"
+       stroke-linecap="round" stroke-linejoin="round" stroke-width="0.9">
+      <use href="#cv-cracks"/>
+    </g>
+
+    <!-- Central hot core (above the cracks) -->
+    <circle cx="160" cy="160" r="14" fill="url(#cv-core)"/>
+    <circle cx="160" cy="160" r="5"  fill="#ffffff" opacity="0.95"/>
+
+    <!-- Spark embers scattered along major cracks -->
+    <g fill="#ffffff">
+      <circle cx="196" cy="86"  r="1.4" opacity="0.95"/>
+      <circle cx="218" cy="164" r="1.2" opacity="0.9"/>
+      <circle cx="188" cy="212" r="1.4" opacity="0.95"/>
+      <circle cx="120" cy="208" r="1.3" opacity="0.92"/>
+      <circle cx="102" cy="158" r="1.2" opacity="0.9"/>
+      <circle cx="122" cy="118" r="1.3" opacity="0.92"/>
+      <circle cx="155" cy="104" r="1.1" opacity="0.85"/>
+      <circle cx="150" cy="218" r="1.1" opacity="0.85"/>
+    </g>
+  </g>
+
+  <!-- inner rim shading -->
+  <circle cx="160" cy="160" r="115" fill="url(#cv-rim-shade)"/>
+
+  <!-- top-left specular highlight (glossy gloss, dimmed so it doesn't fight the core) -->
+  <ellipse cx="120" cy="105" rx="48" ry="32" fill="url(#cv-spec-main)"/>
+
+  <!-- tight white hotspot -->
+  <ellipse cx="118" cy="98" rx="11" ry="5.5" fill="#ffffff" fill-opacity="0.55"/>
+
+  <!-- outer rim line -->
+  <circle cx="160" cy="160" r="115" fill="none" stroke="#000000" stroke-opacity="0.75" stroke-width="2"/>
+</svg>

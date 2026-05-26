@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" role="img" aria-label="Onyx Marble Disc">
+  <title>Onyx Marble Disc</title>
+  <desc>Polished onyx marble disc with elegant silver-white veining swirls over a deep black body and a glossy specular sheen.</desc>
+
+  <defs>
+    <radialGradient id="om-body" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0"    stop-color="#3a3a44"/>
+      <stop offset="0.32" stop-color="#1a1a20"/>
+      <stop offset="0.7"  stop-color="#08080a"/>
+      <stop offset="1"    stop-color="#000000"/>
+    </radialGradient>
+
+    <radialGradient id="om-rim" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.78" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.94" stop-color="#000000" stop-opacity="0.65"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0.95"/>
+    </radialGradient>
+
+    <radialGradient id="om-spec" cx="0.30" cy="0.22" r="0.30">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.5"  stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="om-shadow" cx="0.5" cy="0.55" r="0.5">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="0.85" stop-color="#000000" stop-opacity="0.12"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="om-vein-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.5"  stop-color="#c8ccd8" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#7a8090" stop-opacity="0.15"/>
+    </linearGradient>
+
+    <!-- Clip veins to the disc circle so they never bleed past the rim -->
+    <clipPath id="om-clip">
+      <circle cx="160" cy="160" r="113"/>
+    </clipPath>
+  </defs>
+
+  <!-- soft ground shadow -->
+  <ellipse cx="160" cy="175" rx="120" ry="118" fill="url(#om-shadow)"/>
+
+  <!-- main marble body -->
+  <circle cx="160" cy="160" r="115" fill="url(#om-body)"/>
+
+  <!-- Marble veining inside the disc -->
+  <g clip-path="url(#om-clip)" stroke="url(#om-vein-grad)" fill="none" stroke-linecap="round">
+    <path d="M70,90 C100,110 150,95 175,135 C200,175 175,205 220,235"
+          stroke-width="3.5" opacity="0.9"/>
+    <path d="M55,160 C95,140 130,170 165,160 C205,150 230,180 260,168"
+          stroke-width="2.6" opacity="0.75"/>
+    <path d="M90,235 C115,210 140,225 175,200 C210,175 235,205 250,180"
+          stroke-width="2.2" opacity="0.6"/>
+    <path d="M115,70 C130,100 105,140 130,170"
+          stroke-width="1.6" opacity="0.55"/>
+    <path d="M200,80 C190,115 215,145 200,195"
+          stroke-width="1.4" opacity="0.5"/>
+    <path d="M60,120 C80,118 95,128 110,120"
+          stroke-width="1.2" opacity="0.45"/>
+    <path d="M210,250 C225,235 245,238 255,225"
+          stroke-width="1.2" opacity="0.45"/>
+    <!-- tiny mineral flecks -->
+    <circle cx="135" cy="115" r="2"   fill="#e8ecf5" opacity="0.7" stroke="none"/>
+    <circle cx="190" cy="155" r="1.4" fill="#e8ecf5" opacity="0.6" stroke="none"/>
+    <circle cx="105" cy="195" r="1.6" fill="#e8ecf5" opacity="0.55" stroke="none"/>
+    <circle cx="225" cy="120" r="1.2" fill="#e8ecf5" opacity="0.5" stroke="none"/>
+  </g>
+
+  <!-- rim shading -->
+  <circle cx="160" cy="160" r="115" fill="url(#om-rim)"/>
+
+  <!-- top-left specular -->
+  <ellipse cx="118" cy="105" rx="60" ry="38" fill="url(#om-spec)"/>
+
+  <!-- tight white hotspot -->
+  <ellipse cx="115" cy="98" rx="11" ry="5" fill="#ffffff" fill-opacity="0.5"/>
+
+  <!-- outer rim line -->
+  <circle cx="160" cy="160" r="115" fill="none" stroke="#000000" stroke-opacity="0.7" stroke-width="2"/>
+</svg>

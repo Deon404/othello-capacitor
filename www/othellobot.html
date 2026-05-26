@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Player vs Bot</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <script src="shared.js"></script>
+    <script src="sounds.js"></script>
+    <script src="assets/vendor/purify.min.js"></script>
+    <style>
+        /* Page-specific: most feedback / dropdown / board styles now live in style.css */
+        body { padding-top: 50px; }
+    </style>
+</head>
+<body>
+<!-- Optional level badge — visible only in Story Mode (filled by JS) -->
+<div id="level-badge-container" style="margin-top: 6px; min-height: 0;"></div>
+
+<div class="score-board" aria-live="polite">
+    <div id="black-score">You : 2</div>
+    <div id="white-score">Bot : 2</div>
+</div>
+
+<!-- DROPDOWN MENU STRUCTURE -->
+<div class="game-menu-dropdown">
+    <button id="game-menu-button" class="dropdown-button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-bars"></i> Menu
+    </button>
+    <div id="game-menu-content" class="dropdown-content">
+        <a href="#" id="toggle-hints-dropdown">Hide Hints</a>
+        <a href="#" id="restart-dropdown">Restart Game</a>
+        <a href="index.html">Main Menu</a>
+    </div>
+</div>
+
+<!-- Pause button (top-right): freezes the level timer + blocks the bot's
+     next move until the player taps Resume. -->
+<button id="pause-btn" class="pause-btn" type="button"
+        aria-label="Pause game" title="Pause game">
+    <i class="fas fa-pause"></i>
+</button>
+
+<!-- Pause overlay shown when the game is paused -->
+<div id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="pause-overlay-title">
+    <div class="pause-card">
+        <div class="pause-icon-big"><i class="fas fa-pause-circle"></i></div>
+        <h2 id="pause-overlay-title">Game Paused</h2>
+        <p>The bot is on hold and the clock is frozen.</p>
+        <div class="pause-actions">
+            <button id="resume-btn" type="button"><i class="fas fa-play"></i> Resume</button>
+            <button id="pause-main-menu-btn" type="button" class="btn-secondary">Main Menu</button>
+        </div>
+    </div>
+</div>
+
+  <!-- The game board -->
+  <div id="board" class="board" role="grid" aria-label="Othello board"></div>
+</div>
+
+<!-- Hidden description referenced by aria-describedby on valid-move cells -->
+<span id="valid-move" class="sr-only">valid move</span>
+
+<!-- History Navigation Buttons -->
+<div class="history-buttons">
+    <button id="prev-move-btn" disabled title="Previous move"><i class="fas fa-step-backward"></i></button>
+    <button id="undo-btn" disabled title="Undo last move"><i class="fas fa-undo"></i></button>
+    <button id="next-move-btn" disabled title="Next move"><i class="fas fa-step-forward"></i></button>
+    <button id="replay-btn" style="display:none" title="Auto-play replay"><i class="fas fa-play"></i></button>
+</div>
+
+
+<div id="skip-turn-overlay" class="skip-turn-overlay">
+    <div id="skip-turn-popup" class="skip-turn-popup">
+        <span id="skip-player-message">Player</span> Skipped Turn!
+    </div>
+</div>
+
+<div id="game-over" aria-live="polite"></div>
+<div id="skip-history-box">
+    <h3>History:</h3>
+     <ul id="skip-history-list"></ul>
+</div>
+
+<footer>
+    <a style="color: rgb(175, 175, 175); text-decoration: none;" href="https://www.instagram.com/sidonstudio/">Developed
+        by @SidonStudio</a>
+</footer>
+<script>
+    // Theme handling and core utility functions (copyBoard, areBoardsEqual,
+    // isValidMove, switchPlayer, isLastPlaced, sanitizeText) come from shared.js.
+
+    // --- Story Mode Constants ---
+    const LEVELS = [
+      { id:1,  name:"First Flip",    diff:1, timer:0,   hint:true,  desc:"Beat the Easy bot to get started!" },
+      { id:2,  name:"Corner Rush",   diff:1, timer:90,  hint:true,  desc:"Win before the clock runs out!" },
+      { id:3,  name:"Green Machine", diff:1, timer:0,   hint:true,  desc:"Win by 10+ pieces!" },
+      { id:4,  name:"Speed Demon",   diff:1, timer:45,  hint:true,  desc:"45 seconds. Go!" },
+      { id:5,  name:"Medium Rising", diff:2, timer:0,   hint:true,  desc:"The bot just got smarter." },
+      { id:6,  name:"Balanced Board",diff:2, timer:0,   hint:true,  desc:"Win with style — close margin." },
+      { id:7,  name:"Blitz",         diff:2, timer:30,  hint:false, desc:"Think fast. No time to breathe." },
+      { id:8,  name:"Comeback Kid",  diff:2, timer:0,   hint:false, desc:"Fall behind, then conquer." },
+      { id:9,  name:"The Grinder",   diff:3, timer:0,   hint:false, desc:"Hard bot. No mercy." },
+      { id:10, name:"Endgame",       diff:3, timer:120, hint:false, desc:"2 minutes against the best." },
+      { id:11, name:"Domination",    diff:3, timer:0,   hint:false, desc:"Win by 20+ pieces. Can you?" },
+      { id:12, name:"Clock Master",  diff:3, timer:60,  hint:false, desc:"Win AND save time." },
+      { id:13, name:"Grandmaster",   diff:3, timer:0,   hint:false, desc:"Prove you belong at the top." },
+      { id:14, name:"No Mercy",      diff:3, timer:0,   hint:false, desc:"Hard bot + no hints. Just you." },
+      { id:15, name:"Champion",      diff:3, timer:45,  hint:false, desc:"The ultimate Othello challenge!" },
+    ];
+
+    const STAR_THRESHOLDS = {
+      1:  [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, minScore:45 }],
+      2:  [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, maxTime:60 }],
+      3:  [{ stars:1, minMargin:10 }, { stars:2, minMargin:20 }, { stars:3, minMargin:30 }],
+      4:  [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, maxTime:30 }],
+      5:  [{ stars:1, minScore:32 }, { stars:2, minScore:36 }, { stars:3, minScore:40 }],
+      6:  [{ stars:1, minScore:32 }, { stars:2, minScore:34 }, { stars:3, minScore:36 }],
+      7:  [{ stars:1, minScore:32 }, { stars:2, minScore:35 }, { stars:3, maxTime:20 }],
+      8:  [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, minScore:44 }],
+      9:  [{ stars:1, minScore:32 }, { stars:2, minScore:36 }, { stars:3, minScore:40 }],
+      10: [{ stars:1, minScore:32 }, { stars:2, minScore:36 }, { stars:3, minScore:40 }],
+      11: [{ stars:1, minMargin:20 }, { stars:2, minMargin:30 }, { stars:3, minMargin:40 }],
+      12: [{ stars:1, minScore:32 }, { stars:2, timeLeft:30 }, { stars:3, timeLeft:45 }],
+      13: [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, minScore:44 }],
+      14: [{ stars:1, minScore:32 }, { stars:2, minScore:38 }, { stars:3, minScore:46 }],
+      15: [{ stars:1, minScore:32 }, { stars:2, minScore:40 }, { stars:3, minScore:50 }],
+    };
+
+    // --- Read Story Mode URL Parameters ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const levelMode = urlParams.get('level');
+    const levelId = parseInt(levelMode) || null;
+    const levelDiff = parseInt(urlParams.get('diff')) || 1;
+    const levelTimer = parseInt(urlParams.get('timer')) || 0;
+    const levelHint = urlParams.get('hint') !== 'false';
+    const returnToMap = urlParams.get('returnTo') === 'levels';
+
+    let levelTimerInterval = null;
+    let levelTimeLeft = levelTimer;
+
+    const BOARD_SIZE = 8;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+    let HUMAN = BLACK;
+    let BOT = WHITE;
+    let currentPlayer = HUMAN;
+    let scores = {black: 2, white: 2};
+    let showHints = true;
+    let gameOver = false;
+    let board;
+    let animationInProgress = false;
+    let cells = [];
+    let skipHistory = [];
+    let gameHistory = [];
+    let currentHistoryIndex = -1;
+    let isViewingHistory = false;
+    let botThinking = false;
+
+    // Bot difficulty/search depth - set after reading URL parameter
+    let MINIMAX_DEPTH = 4;
+    let currentDifficulty = 'medium';
+
+    const directions = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [-1, 1], [1, -1], [1, 1]
+    ];
+
+    // Define "bad" squares (C-squares) - adjacent to corners
+    const cSquares = [
+        [0, 1], [1, 0], [1, 1],
+        [0, 6], [1, 7], [1, 6],
+        [6, 0], [7, 1], [6, 1],
+        [6, 7], [7, 6], [6, 6]
+    ];
+    const isCSquare = (r, c) => cSquares.some(([cr, cc]) => cr === r && cc === c);
+    const isCorner = (r, c) => (r === 0 || r === 7) && (c === 0 || c === 7);
+
+
+    let prevMoveBtn;
+    let nextMoveBtn;
+    let undoBtn;
+    let replayBtn;
+    let toggleHintsDropdownLink;
+    let restartDropdownLink;
+    let skipHistoryList;
+
+    // Replay state
+    let replayInterval = null;
+    const REPLAY_SPEED_MS = 800;
+
+    // --- Pause state ---
+    // While paused: level timer is frozen, board clicks are blocked, and the
+    // bot will not start its next move (the resume handler re-kicks the bot
+    // turn if it was about to play). The button itself is greyed out at
+    // moments where pausing would be unsafe (mid-animation, viewing history,
+    // game over, bot already thinking).
+    let isPaused = false;
+    let pauseBtnEl = null;
+    let pauseOverlayEl = null;
+
+
+    function getUrlParameter(name) {
+        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+        const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+        const results = regex.exec(location.search);
+        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const gameMenuButton = document.getElementById('game-menu-button');
+        const gameMenuContent = document.getElementById('game-menu-content');
+        const gameMenuDropdown = document.querySelector('.game-menu-dropdown');
+
+        prevMoveBtn = document.getElementById('prev-move-btn');
+        nextMoveBtn = document.getElementById('next-move-btn');
+        undoBtn = document.getElementById('undo-btn');
+        replayBtn = document.getElementById('replay-btn');
+        toggleHintsDropdownLink = document.getElementById('toggle-hints-dropdown');
+        restartDropdownLink = document.getElementById('restart-dropdown');
+        skipHistoryList = document.getElementById('skip-history-list');
+
+
+        if (gameMenuButton && gameMenuContent && gameMenuDropdown) {
+            gameMenuButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isActive = gameMenuDropdown.classList.toggle('active');
+                gameMenuButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+            });
+
+            window.addEventListener('click', (event) => {
+                if (gameMenuDropdown.classList.contains('active')) {
+                    if (!gameMenuDropdown.contains(event.target)) {
+                        gameMenuDropdown.classList.remove('active');
+                        gameMenuButton.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+
+            gameMenuContent.addEventListener('click', () => {
+                gameMenuDropdown.classList.remove('active');
+                gameMenuButton.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showHints = !showHints;
+                renderBoard([]);
+                toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+            });
+        }
+
+        if (restartDropdownLink) {
+            restartDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (animationInProgress || isViewingHistory) return;
+                stopReplay();
+                initializeGame();
+            });
+        }
+
+        if(prevMoveBtn) prevMoveBtn.addEventListener('click', showPreviousMove);
+        if(nextMoveBtn) nextMoveBtn.addEventListener('click', showNextMove);
+        if(undoBtn) undoBtn.addEventListener('click', undoLastMove);
+        if(replayBtn) replayBtn.addEventListener('click', () => {
+            replayInterval ? stopReplay() : startReplay();
+        });
+
+        // Pause wiring — button toggles, overlay's Resume/Main Menu reflect
+        // the same state. Esc / "p" keyboard shortcut supported on desktop.
+        pauseBtnEl = document.getElementById('pause-btn');
+        pauseOverlayEl = document.getElementById('pause-overlay');
+        const resumeBtn = document.getElementById('resume-btn');
+        const pauseMainMenuBtn = document.getElementById('pause-main-menu-btn');
+        if (pauseBtnEl) pauseBtnEl.addEventListener('click', pauseGame);
+        if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+        if (pauseMainMenuBtn) {
+            pauseMainMenuBtn.addEventListener('click', () => {
+                location.href = returnToMap ? 'levels.html' : 'index.html';
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isPaused) resumeGame();
+            else if (e.key === 'p' && !isPaused && canPause()) pauseGame();
+        });
+
+        // Read difficulty parameter and set MINIMAX_DEPTH *before* initializing the game
+        if (levelMode !== null) {
+            if (levelDiff === 1) {
+                currentDifficulty = 'easy';
+                MINIMAX_DEPTH = 1;
+            } else if (levelDiff === 3) {
+                currentDifficulty = 'hard';
+                MINIMAX_DEPTH = 6;
+            } else {
+                currentDifficulty = 'medium';
+                MINIMAX_DEPTH = 3;
+            }
+            console.log(`Story Mode Level ${levelId} Bot Difficulty: ${currentDifficulty} (Depth: ${MINIMAX_DEPTH})`);
+
+            // Apply Level Mode styling & inject badge
+            injectLevelStyles();
+
+            const badge = document.createElement('div');
+            badge.className = 'cc-level-badge level-badge';
+            const levelObj = LEVELS.find(l => l.id === levelId);
+            const levelName = levelObj ? levelObj.name : "Challenge";
+            badge.innerHTML = DOMPurify.sanitize(`<i class="fas fa-trophy" style="color: var(--gold);"></i> Level ${levelId} — <span style="color: #fff;">${sanitizeText(levelName)}</span>`);
+            const badgeContainer = document.getElementById('level-badge-container');
+            if (badgeContainer) {
+                badgeContainer.style.cssText = 'margin: 10px auto 0; display: flex; justify-content: center; width: 100%;';
+                badgeContainer.appendChild(badge);
+            } else {
+                document.body.appendChild(badge);
+            }
+
+            // Hide hints dropdown option if hints are disabled for this level
+            if (!levelHint) {
+                showHints = false;
+                const toggleHintsLink = document.getElementById('toggle-hints-dropdown');
+                if (toggleHintsLink) {
+                    toggleHintsLink.style.display = 'none';
+                }
+            }
+
+            // If returnTo=levels, change "Main Menu" link in dropdown to "Back to Map"
+            if (returnToMap) {
+                const mainMenuLink = document.querySelector('#game-menu-content a[href="index.html"]');
+                if (mainMenuLink) {
+                    mainMenuLink.textContent = "Back to Map";
+                    mainMenuLink.href = "levels.html";
+                }
+            }
+        } else {
+            currentDifficulty = (getUrlParameter('difficulty').toLowerCase() || 'medium');
+            switch (currentDifficulty) {
+                case 'easy':
+                    MINIMAX_DEPTH = 1;
+                    break;
+                case 'hard':
+                    MINIMAX_DEPTH = 6;
+                    break;
+                case 'medium':
+                default:
+                    currentDifficulty = 'medium';
+                    MINIMAX_DEPTH = 3;
+                    break;
+            }
+            console.log(`Bot Difficulty: ${currentDifficulty} (Depth: ${MINIMAX_DEPTH})`);
+        }
+
+
+        initializeGame();
+    });
+
+    function initializeBoard() {
+        const newBoard = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+        newBoard[3][3] = WHITE;
+        newBoard[3][4] = BLACK;
+        newBoard[4][3] = BLACK;
+        newBoard[4][4] = WHITE;
+        return newBoard;
+    }
+
+    // Local wrapper around shared isValidMove that also enforces the history-view guard
+    // so existing call-sites need not change semantics.
+    function isValidMoveLive(row, col, player) {
+        if (isViewingHistory) return false;
+        return isValidMove(row, col, player, board, directions);
+    }
+
+    // getValidMoves also calculates flip counts for evaluation purposes
+    function getValidMoves(player, currentBoard = board) {
+        if (isViewingHistory && currentBoard === board) return [];
+
+        const validMoves = [];
+        if (!currentBoard) return validMoves;
+
+        currentBoard.forEach((row, rowIndex) =>
+            row.forEach((_, colIndex) => {
+                if (currentBoard[rowIndex][colIndex] === EMPTY) {
+                     const flips = getFlipCount(rowIndex, colIndex, player, currentBoard);
+                     if (flips > 0) {
+                          validMoves.push([rowIndex, colIndex, flips]);
+                     }
+                }
+            })
+        );
+        return validMoves;
+    }
+
+    function getFlipCount(row, col, player, currentBoard) {
+        if (!currentBoard || row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE || currentBoard[row][col] !== EMPTY) {
+             return 0;
+        }
+
+        let flipCount = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            let piecesToFlipInDirection = 0;
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (currentBoard[x][y] === EMPTY) break;
+                if (currentBoard[x][y] === player) {
+                    flipCount += piecesToFlipInDirection;
+                    break;
+                }
+                if (currentBoard[x][y] === opponent) {
+                    piecesToFlipInDirection++;
+                } else {
+                    break;
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+        return flipCount;
+    }
+
+
+    // flipPieces returns the pieces that were flipped *and* the one placed.
+    // It also accepts a board state to operate on (for minimax).
+    function flipPieces(row, col, player, currentBoard) {
+        const boardToModify = (currentBoard === board) ? board : copyBoard(currentBoard);
+
+        if (boardToModify[row][col] !== EMPTY) {
+             console.error("flipPieces called on non-empty cell");
+             return {newBoard: boardToModify, flippedPieces: [], placedPiece: null};
+        }
+        boardToModify[row][col] = player;
+
+        const placedPiece = {x: row, y: col};
+
+        const flippedPieces = [];
+
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            const piecesToFlipInDirection = [];
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (boardToModify[x][y] === EMPTY) break;
+                if (boardToModify[x][y] === player) {
+                    if (piecesToFlipInDirection.length > 0) {
+                        piecesToFlipInDirection.forEach(([fx, fy]) => {
+                            boardToModify[fx][fy] = player;
+                             if (currentBoard === board) {
+                                flippedPieces.push({x: fx, y: fy, original: opponent, new: player});
+                             }
+                        });
+                    }
+                    break;
+                }
+                if (boardToModify[x][y] === opponent) {
+                    piecesToFlipInDirection.push([x, y]);
+                } else {
+                    break;
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+         const finalBoardState = (currentBoard === board) ? board : boardToModify;
+        return {newBoard: finalBoardState, flippedPieces, placedPiece};
+    }
+
+
+    function updateScores(currentBoard) {
+        let blackCount = 0, whiteCount = 0;
+        if (!currentBoard) return;
+        currentBoard.forEach(row => row.forEach(cell => {
+            if (cell === BLACK) blackCount++;
+            if (cell === WHITE) whiteCount++;
+        }));
+        scores = {black: blackCount, white: whiteCount};
+        document.getElementById('black-score').textContent = `You : ${scores.black}`;
+        document.getElementById('white-score').textContent = `Bot : ${scores.white}`;
+
+        // Halftime & Comeback kid tracking for Level 8
+        if (levelMode !== null && levelId === 8) {
+            const totalPieces = blackCount + whiteCount;
+            if (totalPieces >= 32 && !window.halftimeReached) {
+                window.halftimeReached = true;
+                if (whiteCount > blackCount) {
+                    window.botLedAtHalftime = true;
+                }
+            }
+        }
+    }
+
+    function updatePlayerDisplay() {
+        const blackScoreDiv = document.getElementById('black-score');
+        const whiteScoreDiv = document.getElementById('white-score');
+
+        blackScoreDiv.classList.remove('current-player', 'black-turn-active');
+        whiteScoreDiv.classList.remove('current-player', 'white-turn-active');
+
+        if (!isViewingHistory) {
+            if (currentPlayer === HUMAN) {
+                blackScoreDiv.classList.add('current-player', 'black-turn-active');
+                if (levelMode !== null && levelTimer > 0) {
+                    startLevelTimer();
+                }
+            } else {
+                whiteScoreDiv.classList.add('current-player', 'white-turn-active');
+                if (levelMode !== null) {
+                    stopLevelTimer();
+                }
+            }
+        } else {
+            if (levelMode !== null) {
+                stopLevelTimer();
+            }
+        }
+    }
+
+    function saveGameResult(result) {
+        // Story-mode plays are tracked via level progress, not the bot
+        // win/loss bucket, so we skip recording during levelMode.
+        if (levelMode !== null) return;
+        if (window.OthelloStats && typeof window.OthelloStats.recordBot === 'function') {
+            window.OthelloStats.recordBot(currentDifficulty, result);
+            return;
+        }
+        const key = `stats-bot-${currentDifficulty}`;
+        let stats = { w: 0, l: 0, d: 0 };
+        try {
+            stats = JSON.parse(localStorage.getItem(key) || '{"w":0,"l":0,"d":0}');
+        } catch (e) { /* ignore */ }
+        if (!stats || typeof stats !== 'object') stats = { w: 0, l: 0, d: 0 };
+        stats[result] = (stats[result] || 0) + 1;
+        localStorage.setItem(key, JSON.stringify(stats));
+    }
+
+    function checkGameOver() {
+        if (isViewingHistory && !gameOver) return false;
+        if (gameOver) return true;
+
+        const humanMoves = getValidMoves(HUMAN);
+        const botMoves = getValidMoves(BOT);
+
+        if (humanMoves.length === 0 && botMoves.length === 0) {
+            gameOver = true;
+
+            if (levelMode !== null) {
+                stopLevelTimer();
+                const playerScore = scores.black;
+                const botScore = scores.white;
+                const isWin = playerScore > botScore;
+                
+                let starsEarned = 0;
+                if (isWin) {
+                    const thresholds = STAR_THRESHOLDS[levelId];
+                    const timeSpent = levelTimer - levelTimeLeft;
+                    const margin = playerScore - botScore;
+                    if (thresholds) {
+                        thresholds.forEach(t => {
+                            let earned = false;
+                            if (t.minScore !== undefined && playerScore >= t.minScore) earned = true;
+                            if (t.minMargin !== undefined && margin >= t.minMargin) earned = true;
+                            if (t.maxTime !== undefined && timeSpent <= t.maxTime) earned = true;
+                            if (t.timeLeft !== undefined && levelTimeLeft >= t.timeLeft) earned = true;
+                            if (earned) {
+                                starsEarned = Math.max(starsEarned, t.stars);
+                            }
+                        });
+                    }
+                    if (starsEarned === 0) starsEarned = 1;
+                }
+                
+                saveLevelProgress(starsEarned, playerScore);
+                
+                if (!gameHistory.length || !areBoardsEqual(gameHistory[gameHistory.length - 1].board, board)) {
+                     captureAndStoreState(null);
+                }
+                if (!skipHistory.length || skipHistory[skipHistory.length - 1].message !== "Game Over!") {
+                    addHistoryMessage("Game Over!", '');
+                }
+                updateUndoButtonState();
+
+                setTimeout(() => {
+                    showLevelOverOverlay(isWin, starsEarned);
+                }, 800);
+                
+                return true;
+            }
+
+            // Safe DOM construction (no innerHTML interpolation) to avoid XSS.
+            const resultText = scores.black > scores.white ? 'You Win!' :
+                scores.white > scores.black ? 'Bot Wins!' : "It's a Tie!";
+            const gameOverDiv = document.createElement('div');
+            gameOverDiv.className = 'game-over';
+            gameOverDiv.textContent = `Game Over! ${resultText}`;
+            const gameOverHost = document.getElementById('game-over');
+            gameOverHost.textContent = '';
+            gameOverHost.appendChild(gameOverDiv);
+
+            // Persist stats + play end-of-game sound + show replay button.
+            if (scores.black > scores.white) {
+                saveGameResult('w');
+                SoundManager.win();
+            } else if (scores.white > scores.black) {
+                saveGameResult('l');
+                SoundManager.lose();
+            } else {
+                saveGameResult('d');
+                SoundManager.lose();
+            }
+            if (replayBtn) replayBtn.style.display = '';
+
+             if (!gameHistory.length || !areBoardsEqual(gameHistory[gameHistory.length - 1].board, board)) {
+                  captureAndStoreState(null);
+             }
+             if (!skipHistory.length || skipHistory[skipHistory.length - 1].message !== "Game Over!") {
+                 addHistoryMessage("Game Over!", '');
+             }
+             updateUndoButtonState();
+            return true;
+        }
+        if(gameOver && (humanMoves.length > 0 || botMoves.length > 0)) {
+             gameOver = false;
+             document.getElementById('game-over').textContent = '';
+             if (replayBtn) replayBtn.style.display = 'none';
+        }
+        return false;
+    }
+
+    function isGameOver(currentBoard) {
+        const blackMoves = getValidMoves(BLACK, currentBoard);
+        const whiteMoves = getValidMoves(WHITE, currentBoard);
+        return blackMoves.length === 0 && whiteMoves.length === 0;
+    }
+
+
+    function renderBoard(piecesToAnimate = [], placedAt = null) {
+        if (!board || cells.length === 0 || currentHistoryIndex < 0) {
+             if (currentHistoryIndex >= 0) {
+                 console.error("Render aborted: Missing board, cells, or history state.");
+             }
+            return;
+        }
+
+        const validMoves = (!isViewingHistory && showHints && !gameOver) ? getValidMoves(currentPlayer) : [];
+        const currentPlayerColorName = currentPlayer === HUMAN ? 'black' : 'white';
+
+        const stateLastPlaced = gameHistory[currentHistoryIndex]?.lastPlaced;
+
+        board.forEach((row, rowIndex) => {
+            row.forEach((cell, colIndex) => {
+                const cellElement = cells[rowIndex][colIndex];
+                if (!cellElement) return;
+
+                // --- Update ARIA label so screen readers track piece state ---
+                const cellLabel = `${String.fromCharCode(65 + colIndex)}${rowIndex + 1}, ` +
+                    `${cell === BLACK ? 'your piece' : cell === WHITE ? 'bot piece' : 'empty'}`;
+                cellElement.setAttribute('aria-label', cellLabel);
+
+                // --- Update Hints ---
+                const isHint = validMoves.some(([x, y]) => x === rowIndex && y === colIndex);
+                cellElement.classList.toggle('hint', isHint);
+                if (isHint) {
+                     cellElement.dataset.player = currentPlayerColorName;
+                     cellElement.style.cursor = (!isViewingHistory && !animationInProgress) ? 'pointer' : 'default';
+                     cellElement.setAttribute('aria-describedby', 'valid-move');
+                } else {
+                    delete cellElement.dataset.player;
+                    cellElement.style.cursor = isViewingHistory ? 'default' : 'pointer';
+                    cellElement.removeAttribute('aria-describedby');
+                }
+
+
+                // --- Update Piece ---
+                let piece = cellElement.querySelector('.piece');
+                const targetPieceColor = cell;
+                const targetPieceColorName = targetPieceColor === BLACK ? 'black' : (targetPieceColor === WHITE ? 'white' : null);
+
+
+                if (targetPieceColor !== EMPTY) {
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.className = 'piece';
+                        const blackFace = document.createElement('div');
+                        blackFace.className = 'piece-face black';
+                        const whiteFace = document.createElement('div');
+                        whiteFace.className = 'piece-face white';
+                        piece.appendChild(blackFace);
+                        piece.appendChild(whiteFace);
+                        cellElement.appendChild(piece);
+
+                        piece.classList.add(`color-${targetPieceColorName}`);
+
+                        // Premium place burst — ripple + pop + sparkles.
+                        // Gated by animationInProgress so the initial board
+                        // state and history-scrub re-renders don't fire bursts.
+                        if (!isViewingHistory && animationInProgress) {
+                            const ripple = document.createElement('span');
+                            ripple.className = 'place-ripple';
+                            cellElement.insertBefore(ripple, piece);
+                            ripple.addEventListener('animationend',
+                                () => ripple.remove(), { once: true });
+
+                            piece.classList.add('place-pop');
+                            piece.addEventListener('animationend',
+                                () => piece.classList.remove('place-pop'),
+                                { once: true });
+
+                            spawnSparkles(cellElement, 6);
+                        }
+
+                    } else {
+                         const currentPieceColorName = piece.classList.contains('color-black') ? 'black' : (piece.classList.contains('color-white') ? 'white' : null);
+
+                         if (currentPieceColorName !== targetPieceColorName) {
+                             const shouldAnimate = piecesToAnimate.some(p => p.x === rowIndex && p.y === colIndex && p.new === targetPieceColor && p.original !== EMPTY);
+
+                              if (shouldAnimate && !isViewingHistory && animationInProgress) {
+                                 // Ripple-out flip: discs further from the placed
+                                 // piece start their squash later, so the user
+                                 // can follow the capture chain visually. The
+                                 // color class is swapped at the squash midpoint
+                                 // (scaleX(0)) so the change is hidden under the
+                                 // disc's pinched silhouette and looks like a
+                                 // real flip. Constants live in shared.js so the
+                                 // bot / 2P / online pages all stay in sync.
+                                 const oldName = currentPieceColorName;
+                                 const newName = targetPieceColorName;
+                                 const startDelay = flipStartDelayMs({ x: rowIndex, y: colIndex }, placedAt);
+                                 const swapAt     = startDelay + FLIP_TIMING.squashDurationMs / 2;
+                                 const endAt      = startDelay + FLIP_TIMING.squashDurationMs;
+                                 setTimeout(() => piece.classList.add('flipping'), startDelay);
+                                 setTimeout(() => {
+                                     if (oldName) piece.classList.remove(`color-${oldName}`);
+                                     piece.classList.add(`color-${newName}`);
+                                 }, swapAt);
+                                 setTimeout(() => piece.classList.remove('flipping'), endAt);
+                              } else {
+                                  if (currentPieceColorName) piece.classList.remove(`color-${currentPieceColorName}`);
+                                  piece.classList.add(`color-${targetPieceColorName}`);
+                              }
+                         }
+                    }
+
+                    piece.classList.toggle('last-move-piece', isLastPlaced(rowIndex, colIndex, stateLastPlaced));
+
+                } else {
+                    if (piece) {
+                        piece.remove();
+                    }
+                    cellElement.classList.remove('last-move-cell-hint');
+                }
+            });
+        });
+
+        // Pause button state piggybacks on the central render path so it
+        // always stays in sync with gameOver / animationInProgress / history
+        // view / botThinking — no need to remember to update it at every
+        // transition site.
+        updatePauseButtonState();
+    }
+
+
+    function addHistoryMessage(message, className = '') {
+         skipHistory.push({ message: message, class: className });
+         updateSkipHistoryDisplay();
+    }
+
+
+    function updateSkipHistoryDisplay() {
+        if (!skipHistoryList) return;
+        skipHistoryList.textContent = '';
+
+        if (isViewingHistory) {
+             const messageItem = document.createElement('li');
+             messageItem.textContent = "(Viewing historical state)";
+             messageItem.classList.add('history-view-message');
+             skipHistoryList.appendChild(messageItem);
+        } else {
+             skipHistory.forEach(item => {
+                const listItem = document.createElement('li');
+                 if (typeof item === 'string') {
+                     listItem.textContent = item;
+                      listItem.classList.add('skip-message');
+                 } else if (item && item.message) {
+                    // Always use textContent (never innerHTML) so user-controllable text cannot inject markup.
+                    listItem.textContent = item.message;
+                     if (item.class) {
+                         const classesToAdd = item.class.split(' ').filter(c => c);
+                         if (classesToAdd.length > 0) {
+                            listItem.classList.add(...classesToAdd);
+                         }
+                     } else {
+                          listItem.classList.add('feedback-okay');
+                     }
+                 } else {
+                     listItem.textContent = "(Unknown history item)";
+                 }
+                skipHistoryList.appendChild(listItem);
+             });
+             skipHistoryList.scrollTop = skipHistoryList.scrollHeight;
+        }
+    }
+
+    function showSkipAnimation(playerColorName) {
+        const overlay = document.getElementById('skip-turn-overlay');
+        const playerMessageSpan = document.getElementById('skip-player-message');
+
+        playerMessageSpan.textContent = playerColorName;
+        overlay.classList.add('visible');
+        SoundManager.skip();
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                setTimeout(resolve, 300);
+            }, 1500);
+        });
+    }
+
+    function captureAndStoreState(lastPlacedCoords = null) {
+        if (currentHistoryIndex < gameHistory.length - 1) {
+            gameHistory = gameHistory.slice(0, currentHistoryIndex + 1);
+             isViewingHistory = false;
+             skipHistory = skipHistory.slice(0, gameHistory.length);
+             updateSkipHistoryDisplay();
+        }
+        const currentState = {
+            board: copyBoard(board),
+            scores: { ...scores },
+            currentPlayer: currentPlayer,
+            lastPlaced: lastPlacedCoords,
+            levelTimeLeft: levelMode !== null ? levelTimeLeft : undefined
+        };
+        gameHistory.push(currentState);
+        currentHistoryIndex = gameHistory.length - 1;
+        updateHistoryButtonStates();
+    }
+
+
+    function applyGameState(state) {
+        board = copyBoard(state.board);
+        scores = { ...state.scores };
+        currentPlayer = state.currentPlayer;
+
+        if (levelMode !== null && state.levelTimeLeft !== undefined) {
+            levelTimeLeft = state.levelTimeLeft;
+            updateLevelTimerDisplay();
+        }
+
+        updateScores(board);
+        updatePlayerDisplay();
+
+        renderBoard([]);
+
+        updateSkipHistoryDisplay();
+        updateHistoryButtonStates();
+    }
+
+    function updateHistoryButtonStates() {
+        if (!prevMoveBtn || !nextMoveBtn) return;
+
+        prevMoveBtn.disabled = currentHistoryIndex <= 0;
+        nextMoveBtn.disabled = currentHistoryIndex >= gameHistory.length - 1;
+
+        isViewingHistory = currentHistoryIndex < gameHistory.length - 1;
+
+        const boardElement = document.getElementById('board');
+        if (boardElement) {
+            boardElement.classList.toggle('history-view', isViewingHistory);
+        }
+
+        updateUndoButtonState();
+    }
+
+    function updateUndoButtonState() {
+        // Pause button state shares the same set of game-flow gates, so keep
+        // them in lockstep — every site that updates the undo button also
+        // implicitly refreshes the pause button.
+        updatePauseButtonState();
+
+        if (!undoBtn) return;
+        // Need at least 3 history entries (initial + human + bot) to undo a round-trip,
+        // and can't undo while animating, while bot is thinking, or while replaying.
+        const canUndo = gameHistory.length >= 3
+            && !animationInProgress
+            && !botThinking
+            && !isViewingHistory
+            && !replayInterval;
+        undoBtn.disabled = !canUndo;
+    }
+
+
+    function showPreviousMove() {
+         if (animationInProgress || currentHistoryIndex <= 0) return;
+        stopReplay();
+        currentHistoryIndex--;
+        applyGameState(gameHistory[currentHistoryIndex]);
+    }
+
+    function showNextMove() {
+         if (animationInProgress || currentHistoryIndex >= gameHistory.length - 1) return;
+        stopReplay();
+        currentHistoryIndex++;
+        applyGameState(gameHistory[currentHistoryIndex]);
+
+        if (!isViewingHistory && !gameOver) {
+            setTimeout(async () => {
+                if (!gameOver && !isViewingHistory && !animationInProgress) {
+                   await checkForAutoSkip();
+                    if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory && !isPaused) {
+                        botMove();
+                    }
+                }
+            }, 100);
+        }
+    }
+
+    function undoLastMove() {
+        // Undo the human move + the bot's response (two states back). If only one
+        // extra state exists (e.g., bot moved first and human hasn't moved yet),
+        // we can't undo cleanly, so bail.
+        if (gameHistory.length < 3 || animationInProgress || botThinking || replayInterval) return;
+
+        // Walk back to the last state where it was the human's turn (currentPlayer === HUMAN).
+        let target = currentHistoryIndex - 2;
+        while (target > 0 && gameHistory[target].currentPlayer !== HUMAN) {
+            target--;
+        }
+        if (target < 0) target = 0;
+
+        currentHistoryIndex = target;
+        const state = gameHistory[currentHistoryIndex];
+        applyGameState(state);
+
+        gameHistory = gameHistory.slice(0, currentHistoryIndex + 1);
+        skipHistory = skipHistory.slice(0, gameHistory.length - 1);
+
+        gameOver = false;
+        isViewingHistory = false;
+        currentPlayer = HUMAN;
+        document.getElementById('game-over').textContent = '';
+        if (replayBtn) replayBtn.style.display = 'none';
+
+        updateSkipHistoryDisplay();
+        updateHistoryButtonStates();
+        renderBoard([]);
+        updatePlayerDisplay();
+    }
+
+    // --- Replay (auto-play recorded history) ---
+    function startReplay() {
+        if (replayInterval || gameHistory.length < 2) return;
+        currentHistoryIndex = 0;
+        applyGameState(gameHistory[0]);
+        renderBoard([]);
+
+        replayInterval = setInterval(() => {
+            if (currentHistoryIndex >= gameHistory.length - 1) {
+                stopReplay();
+                return;
+            }
+            currentHistoryIndex++;
+            applyGameState(gameHistory[currentHistoryIndex]);
+            renderBoard([]);
+            updateHistoryButtonStates();
+        }, REPLAY_SPEED_MS);
+
+        if (replayBtn) replayBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        updateUndoButtonState();
+    }
+
+    function stopReplay() {
+        if (replayInterval) {
+            clearInterval(replayInterval);
+            replayInterval = null;
+        }
+        if (replayBtn) replayBtn.innerHTML = '<i class="fas fa-play"></i>';
+        updateUndoButtonState();
+    }
+
+
+    async function autoSkipTurn() {
+        if (gameOver || isViewingHistory || animationInProgress) return;
+
+        animationInProgress = true;
+        updateUndoButtonState();
+
+        const playerColorName = currentPlayer === HUMAN ? 'You' : 'Bot';
+        addHistoryMessage(`${playerColorName} had no valid moves!`, 'skip-message');
+
+
+        await showSkipAnimation(playerColorName);
+
+        currentPlayer = switchPlayer(currentPlayer);
+        updatePlayerDisplay();
+
+        const gameEndedAfterSkip = checkGameOver();
+
+        captureAndStoreState(null);
+
+
+        renderBoard([]);
+
+
+        animationInProgress = false;
+        updateUndoButtonState();
+
+        if (gameEndedAfterSkip) return;
+
+         if (!isViewingHistory) {
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip();
+                      if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory && !isPaused) {
+                         botMove();
+                      }
+                 }
+             }, 50);
+        }
+    }
+
+
+    async function checkForAutoSkip() {
+        if (gameOver || isViewingHistory || animationInProgress) return false;
+
+        const validMoves = getValidMoves(currentPlayer);
+
+        if (validMoves.length === 0) {
+             if (checkGameOver()) {
+                 return false;
+             } else {
+                 await autoSkipTurn();
+                 return true;
+             }
+        }
+        renderBoard([]);
+        return false;
+    }
+
+
+    // --- Minimax Algorithm (UNCHANGED) ---
+
+    function evaluateBoard(currentBoard, player) {
+        let playerScore = 0;
+        let opponentScore = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                if (currentBoard[i][j] === player) {
+                    playerScore++;
+                } else if (currentBoard[i][j] === opponent) {
+                    opponentScore++;
+                }
+            }
+        }
+
+        const corners = [[0, 0], [0, 7], [7, 0], [7, 7]];
+        corners.forEach(([r, c]) => {
+            if (currentBoard[r][c] === player) playerScore += 20;
+            else if (currentBoard[r][c] === opponent) opponentScore += 20;
+        });
+
+        return playerScore - opponentScore;
+    }
+
+    function minimax(currentBoard, depth, isMaximizingPlayer, alpha, beta) {
+        const player = isMaximizingPlayer ? BOT : HUMAN;
+        const opponent = isMaximizingPlayer ? HUMAN : BOT;
+
+        if (depth === 0 || isGameOver(currentBoard)) {
+            return evaluateBoard(currentBoard, BOT);
+        }
+
+        const validMoves = getValidMoves(player, currentBoard).map(move => [move[0], move[1]]);
+
+        if (validMoves.length === 0) {
+            if (getValidMoves(opponent, currentBoard).length === 0) {
+                 return evaluateBoard(currentBoard, BOT);
+            } else {
+                 return minimax(currentBoard, depth, !isMaximizingPlayer, alpha, beta);
+            }
+        }
+
+
+        if (isMaximizingPlayer) {
+            let maxEval = -Infinity;
+            for (const [r, c] of validMoves) {
+                const { newBoard } = flipPieces(r, c, player, copyBoard(currentBoard));
+
+                const evaluation = minimax(newBoard, depth - 1, false, alpha, beta);
+                maxEval = Math.max(maxEval, evaluation);
+
+                alpha = Math.max(alpha, evaluation);
+                if (beta <= alpha) {
+                    break;
+                }
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const [r, c] of validMoves) {
+                const { newBoard } = flipPieces(r, c, player, copyBoard(currentBoard));
+
+                const evaluation = minimax(newBoard, depth - 1, true, alpha, beta);
+                minEval = Math.min(minEval, evaluation);
+
+                beta = Math.min(beta, evaluation);
+                if (beta <= alpha) {
+                    break;
+                }
+            }
+            return minEval;
+        }
+    }
+
+    // --- End Minimax Algorithm ---
+
+    // --- Move Evaluation Feedback Logic ---
+
+    function getFeedback(chosenMoveCoords, allPossibleMovesWithValues, player) {
+        const [chosenR, chosenC] = chosenMoveCoords;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+        const playerType = player === HUMAN ? 'You' : 'Bot';
+
+        if (!allPossibleMovesWithValues || allPossibleMovesWithValues.length === 0) {
+             return { message: `${playerType} made a move.`, className: '' };
+        }
+
+        let actualBestValue = -Infinity;
+         if (player === HUMAN) {
+             actualBestValue = Math.min(...allPossibleMovesWithValues.map(m => m.value));
+         } else {
+            actualBestValue = Math.max(...allPossibleMovesWithValues.map(m => m.value));
+         }
+
+
+        const chosenMoveEntry = allPossibleMovesWithValues.find(m => m.move[0] === chosenR && m.move[1] === chosenC);
+        const chosenMoveValue = chosenMoveEntry ? chosenMoveEntry.value : null;
+
+        if (chosenMoveValue === null) {
+             return { message: `${playerType} made a move. (Eval Error)`, className: '' };
+        }
+
+        let valueDifference = 0;
+         if (player === HUMAN) {
+             valueDifference = chosenMoveValue - actualBestValue;
+         } else {
+             valueDifference = actualBestValue - chosenMoveValue;
+         }
+
+
+        const thresholds = {
+             optimal: 0,
+             good: 2,
+             okay: 5
+        };
+
+         if (isCorner(chosenR, chosenC)) {
+              if (valueDifference <= thresholds.good) {
+                   return { message: `${playerType} took a Corner! Nice!`, className: `${playerType === 'You' ? 'optimal' : 'bot optimal'}` };
+              } else {
+                  return { message: `${playerType} took a Corner, but it was tricky!`, className: `${playerType === 'You' ? 'risky' : 'bot risky'}` };
+              }
+         }
+
+         if (isCSquare(chosenR, chosenC)) {
+               // The move has already been applied to `board` by the caller
+               // (handleMove / botMove). Re-simulating with flipPieces would
+               // hit a non-empty cell and log a false-positive error — just
+               // read the opponent's responses from the current board.
+               const opponentNextMoves = getValidMoves(opponent, board);
+               let opponentCanTakeCorner = false;
+               for(const [or, oc] of opponentNextMoves) {
+                    if(isCorner(or, oc)) {
+                         opponentCanTakeCorner = true;
+                         break;
+                    }
+               }
+               if (opponentCanTakeCorner) {
+                    return { message: `${playerType} placed here - careful, gives opponent a corner!`, className: `${playerType === 'You' ? 'risky' : 'bot risky'}` };
+               }
+         }
+
+
+        let message;
+        let className;
+
+        if (valueDifference <= thresholds.optimal) {
+            message = `${playerType} played a Great Move!`;
+            className = 'optimal';
+        } else if (valueDifference <= thresholds.good) {
+            message = `${playerType} played a Good Move.`;
+            className = 'good';
+        } else if (valueDifference <= thresholds.okay) {
+            message = `${playerType} played an Okay Move.`;
+            className = 'okay';
+        } else {
+            message = `${playerType} played a Less Good Move.`;
+            className = 'suboptimal';
+        }
+
+         if (player === BOT) {
+             className = 'bot ' + className;
+         }
+
+         return { message: message, className: className };
+    }
+
+    // --- End Move Evaluation Feedback Logic ---
+
+
+    async function handleMove(row, col) {
+        if (gameOver || animationInProgress || isViewingHistory || botThinking || isPaused || !isValidMoveLive(row, col, currentPlayer)) {
+            return;
+        }
+        if (levelMode !== null) {
+            stopLevelTimer();
+        }
+        stopReplay();
+
+        animationInProgress = true;
+        updateUndoButtonState();
+
+        const humanValidMovesWithFlips = getValidMoves(HUMAN);
+        let allHumanMovesWithValues = [];
+
+         for (const move of humanValidMovesWithFlips) {
+              const [r, c] = [move[0], move[1]];
+             const { newBoard: simulatedBoard } = flipPieces(r, c, HUMAN, copyBoard(board));
+              const value = minimax(simulatedBoard, MINIMAX_DEPTH - 1, true, -Infinity, Infinity);
+             allHumanMovesWithValues.push({ move: [r, c], value: value });
+         }
+
+
+        const { newBoard, flippedPieces, placedPiece } = flipPieces(row, col, currentPlayer, board);
+
+        SoundManager.placePiece();
+
+        board = newBoard;
+
+        renderBoard(flippedPieces, placedPiece);
+
+        // One flip-tone per ring so the audio cascade matches the visual
+        // ripple (single tone hid multi-disc captures and felt flat).
+        if (flippedPieces.length > 0) {
+            const ringDelays = flipRingStartDelays(flippedPieces, placedPiece);
+            ringDelays.forEach(d => setTimeout(() => SoundManager.flipPiece(), d));
+        }
+
+        const captureWait = Math.max(350, flipTotalDurationMs(flippedPieces, placedPiece));
+        await new Promise(resolve => setTimeout(resolve, captureWait));
+
+        updateScores(board);
+
+        let feedbackMessage = null;
+        let feedbackClass = '';
+        if (placedPiece) {
+             const feedback = getFeedback([placedPiece.x, placedPiece.y], allHumanMovesWithValues, HUMAN);
+             feedbackMessage = feedback.message;
+             feedbackClass = feedback.className;
+             addHistoryMessage(feedbackMessage, feedbackClass);
+        }
+
+
+        currentPlayer = switchPlayer(currentPlayer);
+        updatePlayerDisplay();
+
+        const gameEndedAfterMove = checkGameOver();
+
+        captureAndStoreState(placedPiece);
+
+
+        renderBoard([]);
+
+
+        animationInProgress = false;
+        updateUndoButtonState();
+
+        if (gameEndedAfterMove) return;
+
+        if (!isViewingHistory) {
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip();
+                      if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory && !isPaused) {
+                         botMove();
+                      }
+                 }
+             }, 50);
+        }
+    }
+
+    async function botMove() {
+        if (gameOver || animationInProgress || isViewingHistory || isPaused || currentPlayer !== BOT) return;
+
+        animationInProgress = true;
+        botThinking = true;
+        updateUndoButtonState();
+
+        const validMoves = getValidMoves(BOT);
+
+        if (validMoves.length > 0) {
+            let bestMove = null;
+            let maxEval = -Infinity;
+
+             await new Promise(resolve => setTimeout(resolve, 250));
+
+            let allBotMovesWithValues = [];
+            for (const move of validMoves) {
+                 const [row, col] = [move[0], move[1]];
+                const { newBoard: simulatedBoard } = flipPieces(row, col, BOT, copyBoard(board));
+
+                const evaluation = minimax(simulatedBoard, MINIMAX_DEPTH - 1, false, -Infinity, Infinity);
+
+                allBotMovesWithValues.push({ move: [row, col], value: evaluation });
+
+                if (evaluation > maxEval) {
+                    maxEval = evaluation;
+                    bestMove = [row, col];
+                }
+            }
+
+            const [row, col] = bestMove;
+            const { newBoard, flippedPieces, placedPiece } = flipPieces(row, col, BOT, board);
+
+            SoundManager.placePiece();
+
+            board = newBoard;
+
+            renderBoard(flippedPieces, placedPiece);
+
+            if (flippedPieces.length > 0) {
+                const ringDelays = flipRingStartDelays(flippedPieces, placedPiece);
+                ringDelays.forEach(d => setTimeout(() => SoundManager.flipPiece(), d));
+            }
+
+            const captureWait = Math.max(350, flipTotalDurationMs(flippedPieces, placedPiece));
+            await new Promise(resolve => setTimeout(resolve, captureWait));
+
+            updateScores(board);
+
+            let feedbackMessage = null;
+            let feedbackClass = '';
+             if (placedPiece) {
+                 const feedback = getFeedback([placedPiece.x, placedPiece.y], allBotMovesWithValues, BOT);
+                 feedbackMessage = feedback.message;
+                 feedbackClass = feedback.className;
+                 addHistoryMessage(feedbackMessage, feedbackClass);
+             }
+
+
+            currentPlayer = switchPlayer(currentPlayer);
+            updatePlayerDisplay();
+
+            const gameEndedAfterBotMove = checkGameOver();
+
+            captureAndStoreState(placedPiece);
+
+
+            renderBoard([]);
+
+            animationInProgress = false;
+            botThinking = false;
+            updateUndoButtonState();
+
+            if (gameEndedAfterBotMove) return;
+
+            if (!isViewingHistory) {
+                 await checkForAutoSkip();
+            }
+
+        } else {
+            animationInProgress = false;
+            botThinking = false;
+            updateUndoButtonState();
+            await autoSkipTurn();
+        }
+    }
+
+
+    function createBoardElements() {
+        const boardElement = document.getElementById('board');
+        if (!boardElement) {
+            console.error("Board element #board not found!");
+            return;
+        }
+        boardElement.textContent = '';
+        cells = [];
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            const rowCells = [];
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                cellElement.setAttribute('role', 'gridcell');
+                cellElement.setAttribute('tabindex', '-1');
+
+                if (isCorner(i, j)) {
+                    cellElement.classList.add('corner-dot');
+                }
+
+                cellElement.addEventListener('click', () => handleMove(i, j));
+                // Mobile: handle touchend directly to remove the 300ms tap delay and
+                // prevent the synthetic ghost-click that normally fires after touchend.
+                cellElement.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    handleMove(i, j);
+                }, { passive: false });
+
+                boardElement.appendChild(cellElement);
+                rowCells.push(cellElement);
+            }
+            cells.push(rowCells);
+        }
+
+        boardElement.style.touchAction = 'manipulation';
+    }
+
+
+    function initializeGame() {
+        stopReplay();
+        gameOver = false;
+        animationInProgress = false;
+        botThinking = false;
+        isViewingHistory = false;
+
+        currentPlayer = HUMAN;
+
+        board = initializeBoard();
+        scores = {black: 2, white: 2};
+        skipHistory = [];
+
+        gameHistory = [];
+        currentHistoryIndex = -1;
+
+         addHistoryMessage("Game Start! Good Luck!", '');
+        captureAndStoreState(null);
+
+
+        createBoardElements();
+        updateScores(board);
+        updatePlayerDisplay();
+
+        document.getElementById('game-over').textContent = '';
+        if (replayBtn) replayBtn.style.display = 'none';
+
+        renderBoard([]);
+
+        updateHistoryButtonStates();
+        updateUndoButtonState();
+
+        if (levelMode !== null) {
+            stopLevelTimer();
+            levelTimeLeft = levelTimer;
+            window.botLedAtHalftime = false;
+            window.halftimeReached = false;
+            
+            if (levelTimer > 0) {
+                let timerEl = document.getElementById('timer');
+                if (!timerEl) {
+                    timerEl = document.createElement('div');
+                    timerEl.id = 'timer';
+                    timerEl.className = 'timer-display';
+                    document.querySelector('.score-board').appendChild(timerEl);
+                }
+                updateLevelTimerDisplay();
+                startLevelTimer();
+            }
+        }
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+        }
+
+         setTimeout(async () => {
+            if (!gameOver && !isViewingHistory && !animationInProgress) {
+                 await checkForAutoSkip();
+                 if (currentPlayer === BOT && !gameOver && !animationInProgress && !isViewingHistory && !isPaused) {
+                      botMove();
+                 }
+            }
+        }, 100);
+    }
+
+    // ==========================================
+    // STORY MODE HELPER FUNCTIONS
+    // ==========================================
+    function injectLevelStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Level Complete Overlay styling */
+            .level-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(17, 4, 74, 0.9); /* Dark indigo overlay */
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                opacity: 0;
+                visibility: hidden;
+                transition: opacity 0.5s ease, visibility 0.5s ease;
+            }
+            .level-overlay.show {
+                opacity: 1;
+                visibility: visible;
+            }
+            .level-card {
+                background: linear-gradient(135deg, #2D1B69, #11044A);
+                border: 4px solid #FFD700;
+                border-radius: 24px;
+                padding: 30px;
+                width: 90%;
+                max-width: 380px;
+                text-align: center;
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 215, 0, 0.2);
+                transform: scale(0.85);
+                transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                box-sizing: border-box;
+            }
+            .level-overlay.show .level-card {
+                transform: scale(1);
+            }
+            .level-title {
+                font-family: 'Fredoka One', 'Nunito', sans-serif;
+                font-size: 2.2rem;
+                color: #FF6B9D; /* Bubblegum pink */
+                text-shadow: 2px 2px 0px #11044A, 0 0 10px rgba(255, 107, 157, 0.5);
+                margin-bottom: 5px;
+                margin-top: 0;
+            }
+            .level-subtitle {
+                font-family: 'Fredoka One', 'Nunito', sans-serif;
+                font-size: 1.2rem;
+                color: #FFD700;
+                margin-bottom: 20px;
+                margin-top: 0;
+            }
+            .level-score-container {
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 16px;
+                padding: 15px;
+                margin-bottom: 20px;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .level-score-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .level-score-label {
+                font-size: 0.85rem;
+                color: #9CA3AF;
+                margin-bottom: 5px;
+                font-family: 'Nunito', sans-serif;
+            }
+            .level-score-val {
+                font-size: 1.8rem;
+                font-weight: bold;
+                font-family: 'Fredoka One', sans-serif;
+                color: #FFF;
+            }
+            .level-stars {
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            .level-star {
+                font-size: 3.5rem;
+                color: #333344; /* Grey initially */
+                text-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                transform: scale(0);
+                transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.3s ease;
+            }
+            .level-star.gold {
+                color: #FFD700;
+                text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+            }
+            .level-star.show-star {
+                transform: scale(1);
+            }
+            .level-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .level-btn {
+                font-family: 'Fredoka One', 'Nunito', sans-serif;
+                font-size: 1.1rem;
+                padding: 14px 24px;
+                border: none;
+                border-radius: 50px; /* Pill shape */
+                cursor: pointer;
+                font-weight: bold;
+                transition: all 0.2s ease;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .level-btn-primary {
+                background: linear-gradient(135deg, #FF6B9D, #FF9500);
+                color: white !important;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            }
+            .level-btn-primary:hover {
+                transform: scale(1.03);
+                box-shadow: 0 6px 15px rgba(255, 107, 157, 0.4);
+            }
+            .level-btn-secondary {
+                background: rgba(255, 255, 255, 0.1);
+                color: white !important;
+                border: 2px solid rgba(255, 255, 255, 0.15);
+            }
+            .level-btn-secondary:hover {
+                background: rgba(255, 255, 255, 0.2);
+                transform: scale(1.02);
+            }
+            .level-badge-msg {
+                color: #7DFF4F; /* Lime green success */
+                font-family: 'Fredoka One', sans-serif;
+                font-size: 1.2rem;
+                margin-bottom: 15px;
+            }
+            .level-badge-msg-failed {
+                color: #FF5252; /* Red failure */
+                font-family: 'Fredoka One', sans-serif;
+                font-size: 1.2rem;
+                margin-bottom: 15px;
+            }
+            .new-high-score-badge {
+                background: #FFD700;
+                color: #11044A;
+                font-family: 'Fredoka One', sans-serif;
+                padding: 3px 8px;
+                font-size: 0.8rem;
+                border-radius: 4px;
+                margin-bottom: 10px;
+                display: inline-block;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // --- Pause helpers ---
+    // Pause is allowed any time the player isn't in the middle of a move/flip
+    // animation, isn't scrubbing through history, isn't already paused, and
+    // the game isn't over. Bot-thinking is treated like an animation so the
+    // bot can't be interrupted mid-decision.
+    function canPause() {
+        return !gameOver && !isViewingHistory && !animationInProgress &&
+               !botThinking && !isPaused;
+    }
+
+    function updatePauseButtonState() {
+        if (!pauseBtnEl) return;
+        const enabled = canPause();
+        pauseBtnEl.disabled = !enabled;
+        pauseBtnEl.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    }
+
+    function pauseGame() {
+        if (!canPause()) return;
+        isPaused = true;
+        // Freeze the level timer in-place — levelTimeLeft is preserved so
+        // resume picks up at exactly the same second.
+        stopLevelTimer();
+        if (pauseOverlayEl) pauseOverlayEl.classList.add('visible');
+        updatePauseButtonState();
+    }
+
+    function resumeGame() {
+        if (!isPaused) return;
+        isPaused = false;
+        if (pauseOverlayEl) pauseOverlayEl.classList.remove('visible');
+
+        // Resume the level timer (only when it's the HUMAN's turn — the bot's
+        // turn doesn't count against the player's level clock).
+        if (levelMode !== null && levelTimer > 0 && !gameOver && !isViewingHistory &&
+            currentPlayer === HUMAN) {
+            startLevelTimer();
+        }
+
+        // If the user paused right before a queued bot move, kick the bot
+        // back into action now that the game is unfrozen.
+        if (currentPlayer === BOT && !gameOver && !animationInProgress &&
+            !isViewingHistory && !botThinking) {
+            setTimeout(() => {
+                if (currentPlayer === BOT && !isPaused && !gameOver &&
+                    !animationInProgress && !isViewingHistory && !botThinking) {
+                    botMove();
+                }
+            }, 50);
+        }
+        updatePauseButtonState();
+    }
+
+    function startLevelTimer() {
+        if (levelMode === null || levelTimer <= 0 || gameOver || isViewingHistory || isPaused) return;
+        stopLevelTimer();
+        levelTimerInterval = setInterval(() => {
+            if (levelTimeLeft > 0) {
+                levelTimeLeft--;
+                updateLevelTimerDisplay();
+                const timerEl = document.getElementById('timer');
+                if (levelTimeLeft <= 5) {
+                    if (timerEl) timerEl.classList.add('low-time');
+                } else {
+                    if (timerEl) timerEl.classList.remove('low-time');
+                }
+            } else {
+                stopLevelTimer();
+                handleLevelTimeout();
+            }
+        }, 1000);
+    }
+
+    function stopLevelTimer() {
+        if (levelTimerInterval) {
+            clearInterval(levelTimerInterval);
+            levelTimerInterval = null;
+        }
+    }
+
+    function updateLevelTimerDisplay() {
+        const timerEl = document.getElementById('timer');
+        if (timerEl) {
+            const mins = Math.floor(levelTimeLeft / 60);
+            const secs = levelTimeLeft % 60;
+            timerEl.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+    }
+
+    function handleLevelTimeout() {
+        gameOver = true;
+        stopLevelTimer();
+        SoundManager.lose();
+        
+        // Show Level Failed variant
+        setTimeout(() => {
+            showLevelOverOverlay(false, 0);
+        }, 500);
+    }
+
+    function saveLevelProgress(starsEarned, bestScore) {
+        if (levelMode === null) return;
+        let progress = localStorage.getItem("othello_level_progress");
+        if (progress) {
+            try { progress = JSON.parse(progress); } catch(e) { progress = null; }
+        }
+        if (!progress) {
+            progress = { levels: {}, totalStars: 0, lastPlayedLevel: levelId };
+            for (let i = 1; i <= 15; i++) {
+                progress.levels[i] = { stars: 0, bestScore: null, unlocked: i === 1, completed: false };
+            }
+        }
+        
+        const currentLvl = progress.levels[levelId];
+        let isImproved = false;
+        if (currentLvl) {
+            const oldStars = currentLvl.stars || 0;
+            const oldBest = currentLvl.bestScore || 0;
+            
+            if (starsEarned > oldStars) {
+                currentLvl.stars = starsEarned;
+                isImproved = true;
+            }
+            if (bestScore > oldBest) {
+                currentLvl.bestScore = bestScore;
+            }
+            if (starsEarned >= 1) {
+                currentLvl.completed = true;
+            }
+        }
+        
+        if (starsEarned >= 1 && levelId < 15) {
+            const nextLvl = progress.levels[levelId + 1];
+            if (nextLvl) {
+                nextLvl.unlocked = true;
+            }
+        }
+        
+        progress.lastPlayedLevel = levelId;
+        
+        let sum = 0;
+        for (let i = 1; i <= 15; i++) {
+            sum += (progress.levels[i].stars || 0);
+        }
+        progress.totalStars = sum;
+        
+        localStorage.setItem("othello_level_progress", JSON.stringify(progress));
+        window.isNewHighScore = isImproved && starsEarned > 0;
+    }
+
+    function playStarPing(index) {
+        try {
+            const AudioCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtor) return;
+            const ctx = new AudioCtor();
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            osc.type = 'sine';
+            const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
+            osc.frequency.setValueAtTime(freqs[index] || 523.25, ctx.currentTime);
+            gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch(e) {
+            SoundManager.placePiece();
+        }
+    }
+
+    function launchConfetti() {
+        const canvas = document.createElement('canvas');
+        canvas.id = 'confetti-canvas';
+        canvas.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:99999;';
+        document.body.appendChild(canvas);
+
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const colors = ['#FF6B9D', '#FF9500', '#7DFF4F', '#FFD700', '#00E5FF'];
+        const particles = [];
+
+        for (let i = 0; i < 120; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                r: Math.random() * 5 + 4,
+                d: Math.random() * canvas.height,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                tilt: Math.random() * 10 - 5,
+                tiltAngleIncremental: Math.random() * 0.07 + 0.02,
+                tiltAngle: 0
+            });
+        }
+
+        let animationFrameId;
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let finished = true;
+
+            particles.forEach((p) => {
+                p.tiltAngle += p.tiltAngleIncremental;
+                p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
+                p.x += Math.sin(p.tiltAngle);
+                p.tilt = Math.sin(p.tiltAngle - p.r/2) * 5;
+
+                if (p.y < canvas.height) {
+                    finished = false;
+                }
+
+                ctx.beginPath();
+                ctx.lineWidth = p.r;
+                ctx.strokeStyle = p.color;
+                ctx.moveTo(p.x + p.tilt + p.r / 2, p.y);
+                ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 2);
+                ctx.stroke();
+            });
+
+            if (!finished) {
+                animationFrameId = requestAnimationFrame(draw);
+            }
+        }
+
+        draw();
+        
+        setTimeout(() => {
+            cancelAnimationFrame(animationFrameId);
+            canvas.remove();
+        }, 5000);
+    }
+
+    function showLevelOverOverlay(isWin, starsEarned) {
+        // Remove existing if any
+        const existing = document.getElementById('level-overlay-container');
+        if (existing) existing.remove();
+
+        const container = document.createElement('div');
+        container.id = 'level-overlay-container';
+        container.className = 'level-overlay';
+
+        const card = document.createElement('div');
+        card.className = 'level-card';
+
+        const title = document.createElement('h2');
+        title.className = 'level-title';
+        title.textContent = isWin ? 'Level Cleared!' : 'Level Failed!';
+        if (!isWin) title.style.color = '#FF5252';
+
+        const subtitle = document.createElement('p');
+        subtitle.className = 'level-subtitle';
+        const levelObj = LEVELS.find(l => l.id === levelId);
+        subtitle.textContent = levelObj ? levelObj.name : '';
+
+        card.appendChild(title);
+        card.appendChild(subtitle);
+
+        // Feedback messages
+        if (isWin) {
+            const msg = document.createElement('div');
+            msg.className = 'level-badge-msg';
+            
+            if (levelId === 8 && window.botLedAtHalftime) {
+                msg.textContent = '🎉 Comeback Kid Achieved! 🍬';
+            } else {
+                msg.textContent = 'Awesome job! 🍭';
+            }
+            card.appendChild(msg);
+
+            if (window.isNewHighScore) {
+                const hs = document.createElement('div');
+                hs.className = 'new-high-score-badge';
+                hs.textContent = 'New High Score!';
+                card.appendChild(hs);
+            }
+        } else {
+            const msg = document.createElement('div');
+            msg.className = 'level-badge-msg-failed';
+            msg.textContent = levelTimeLeft === 0 && levelTimer > 0 ? 'Out of Time! ⏰' : 'Try again to pass! 🍫';
+            card.appendChild(msg);
+        }
+
+        // Scores
+        const scoresCont = document.createElement('div');
+        scoresCont.className = 'level-score-container';
+        scoresCont.innerHTML = DOMPurify.sanitize(`
+            <div class="level-score-item">
+                <span class="level-score-label">YOU</span>
+                <span class="level-score-val">${scores.black}</span>
+            </div>
+            <div class="level-score-item">
+                <span class="level-score-label">BOT</span>
+                <span class="level-score-val">${scores.white}</span>
+            </div>
+        `);
+        card.appendChild(scoresCont);
+
+        // Stars
+        const starsCont = document.createElement('div');
+        starsCont.className = 'level-stars';
+        for (let s = 1; s <= 3; s++) {
+            const star = document.createElement('i');
+            star.id = `overlay-star-${s}`;
+            star.className = 'fas fa-star level-star';
+            starsCont.appendChild(star);
+        }
+        card.appendChild(starsCont);
+
+        // Buttons
+        const buttonsCont = document.createElement('div');
+        buttonsCont.className = 'level-buttons';
+
+        if (isWin) {
+            if (levelId < 15) {
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'level-btn level-btn-primary';
+                nextBtn.textContent = 'NEXT LEVEL';
+                nextBtn.onclick = () => {
+                    const nextLvl = LEVELS.find(l => l.id === levelId + 1);
+                    if (nextLvl) {
+                        window.location.href = `othellobot.html?level=${nextLvl.id}&diff=${nextLvl.diff}&timer=${nextLvl.timer}&hint=${nextLvl.hint}&returnTo=levels`;
+                    }
+                };
+                buttonsCont.appendChild(nextBtn);
+            }
+            
+            const replayBtn = document.createElement('button');
+            replayBtn.className = 'level-btn level-btn-secondary';
+            replayBtn.textContent = 'PLAY AGAIN';
+            replayBtn.onclick = () => window.location.reload();
+            buttonsCont.appendChild(replayBtn);
+        } else {
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'level-btn level-btn-primary';
+            retryBtn.textContent = 'TRY AGAIN';
+            retryBtn.onclick = () => window.location.reload();
+            buttonsCont.appendChild(retryBtn);
+        }
+
+        const mapBtn = document.createElement('button');
+        mapBtn.className = 'level-btn level-btn-secondary';
+        mapBtn.textContent = 'BACK TO MAP';
+        mapBtn.onclick = () => {
+            window.location.href = 'levels.html';
+        };
+        buttonsCont.appendChild(mapBtn);
+
+        card.appendChild(buttonsCont);
+        container.appendChild(card);
+        document.body.appendChild(container);
+
+        // Play result sound
+        if (isWin) {
+            SoundManager.win();
+        } else {
+            SoundManager.lose();
+        }
+
+        // Show container and animate stars staggered
+        setTimeout(() => {
+            container.classList.add('show');
+            
+            // Staggered star animation
+            for (let s = 1; s <= 3; s++) {
+                setTimeout(() => {
+                    const star = document.getElementById(`overlay-star-${s}`);
+                    if (star) {
+                        star.classList.add('show-star');
+                        if (s <= starsEarned) {
+                            star.classList.add('gold');
+                            playStarPing(s - 1);
+                        }
+                    }
+                }, 400 + (s - 1) * 350);
+            }
+
+            // Confetti on 3 star wins!
+            if (isWin && starsEarned === 3) {
+                setTimeout(() => {
+                    launchConfetti();
+                }, 1500);
+            }
+        }, 100);
+    }
+</script>
+</body>
+</html>

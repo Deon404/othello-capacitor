@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Player vs Player</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <script src="shared.js"></script>
+    <script src="sounds.js"></script>
+    <style>
+        /* PvP-specific: keep score-board layout flexible enough for the inline timer chip */
+        body { padding-top: 50px; }
+
+        .score-board {
+            grid-template-columns: 1fr 1fr;
+        }
+        .timer-display {
+            grid-column: 1 / -1;
+            justify-self: center;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .score-board { grid-template-columns: 1fr; }
+            .timer-display { grid-column: auto; }
+        }
+    </style>
+</head>
+<body>
+<div class="score-board" aria-live="polite">
+    <div id="black-score"></div>
+    <div id="white-score"></div>
+    <div id="timer" class="timer-display">--</div>
+</div>
+
+<!-- DROPDOWN MENU STRUCTURE -->
+<div class="game-menu-dropdown">
+    <button id="game-menu-button" class="dropdown-button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-bars"></i> Menu
+    </button>
+    <div id="game-menu-content" class="dropdown-content">
+        <a href="#" id="toggle-hints-dropdown">Hide Hints</a>
+        <a href="#" id="restart-dropdown">Restart Game</a>
+        <a href="index.html">Main Menu</a>
+    </div>
+</div>
+<!-- END DROPDOWN MENU STRUCTURE -->
+
+<!-- Pause button (top-right): freezes the per-move timer + blocks clicks -->
+<button id="pause-btn" class="pause-btn" type="button"
+        aria-label="Pause game" title="Pause game">
+    <i class="fas fa-pause"></i>
+</button>
+
+<!-- Pause overlay shown when the game is paused -->
+<div id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="pause-overlay-title">
+    <div class="pause-card">
+        <div class="pause-icon-big"><i class="fas fa-pause-circle"></i></div>
+        <h2 id="pause-overlay-title">Game Paused</h2>
+        <p>Take your time — the clock is frozen.</p>
+        <div class="pause-actions">
+            <button id="resume-btn" type="button"><i class="fas fa-play"></i> Resume</button>
+            <button id="pause-main-menu-btn" type="button" class="btn-secondary">Main Menu</button>
+        </div>
+    </div>
+</div>
+
+  <!-- The game board -->
+  <div id="board" class="board" role="grid" aria-label="Othello board"></div>
+</div>
+
+<!-- Hidden description referenced by aria-describedby on valid-move cells -->
+<span id="valid-move" class="sr-only">valid move</span>
+
+<!-- History Navigation Buttons -->
+<div class="history-buttons">
+    <button id="prev-move-btn" disabled title="Previous move"><i class="fas fa-step-backward"></i></button>
+    <button id="next-move-btn" disabled title="Next move"><i class="fas fa-step-forward"></i></button>
+    <button id="replay-btn" style="display:none" title="Auto-play replay"><i class="fas fa-play"></i></button>
+</div>
+
+<div id="skip-turn-overlay" class="skip-turn-overlay">
+    <div id="skip-turn-popup" class="skip-turn-popup">
+        <span id="skip-player-message">Player</span> Skipped Turn!
+    </div>
+</div>
+
+<div id="game-over" aria-live="polite"></div>
+<div id="skip-history-box">
+    <h3>History:</h3>
+    <ul id="skip-history-list"></ul>
+</div>
+
+<footer>
+    <a style="color: rgb(175, 175, 175); text-decoration: none;" href="https://www.instagram.com/sidonstudio/">Developed
+        by @SidonStudio</a>
+</footer>
+<script>
+    // Theme handling and core utility functions (copyBoard, areBoardsEqual,
+    // isValidMove, switchPlayer, isLastPlaced, sanitizeText) come from shared.js.
+
+    const BOARD_SIZE = 8;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+
+    // Player Data - Will be populated from localStorage
+    let player1 = { name: 'Black Player', color: BLACK };
+    let player2 = { name: 'White Player', color: WHITE };
+
+    let currentPlayer = BLACK;
+    let scores = {black: 2, white: 2};
+    let showHints = true;
+    let gameOver = false;
+    let board;
+    let animationInProgress = false;
+    let cells = [];
+    let skipHistory = [];
+    let gameHistory = [];
+    let currentHistoryIndex = -1;
+    let isViewingHistory = false;
+
+    const FEEDBACK_EVAL_DEPTH = 2;
+
+    // Timer variables — actual values come from the player setup payload.
+    let timerInterval;
+    let timeLeft;
+    let MOVE_TIME_SECONDS = 30;
+    let TIMER_ENABLED = true;
+    let timerDisplayElement;
+
+
+    const directions = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [-1, 1], [1, -1], [1, 1]
+    ];
+
+    const cSquares = [
+        [0, 1], [1, 0], [1, 1],
+        [0, 6], [1, 7], [1, 6],
+        [6, 0], [7, 1], [6, 1],
+        [6, 7], [7, 6], [6, 6]
+    ];
+    const isCSquare = (r, c) => cSquares.some(([cr, cc]) => cr === r && cc === c);
+    const isCorner = (r, c) => (r === 0 || r === 7) && (c === 0 || c === 7);
+
+
+    let prevMoveBtn;
+    let nextMoveBtn;
+    let replayBtn;
+    let toggleHintsDropdownLink;
+    let restartDropdownLink;
+    let skipHistoryList;
+
+    let replayInterval = null;
+    const REPLAY_SPEED_MS = 800;
+    let pvpGameCounted = false;
+
+    // --- Pause state ---
+    // isPaused freezes the per-move timer and the move handler. The button
+    // itself is greyed out while it can't be used (history view, animation
+    // mid-flight, game over) so the UI never lies about whether pause is
+    // available.
+    let isPaused = false;
+    let pauseBtnEl = null;
+    let pauseOverlayEl = null;
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const gameMenuButton = document.getElementById('game-menu-button');
+        const gameMenuContent = document.getElementById('game-menu-content');
+        const gameMenuDropdown = document.querySelector('.game-menu-dropdown');
+
+        timerDisplayElement = document.getElementById('timer');
+
+        prevMoveBtn = document.getElementById('prev-move-btn');
+        nextMoveBtn = document.getElementById('next-move-btn');
+        replayBtn = document.getElementById('replay-btn');
+        toggleHintsDropdownLink = document.getElementById('toggle-hints-dropdown');
+        restartDropdownLink = document.getElementById('restart-dropdown');
+        skipHistoryList = document.getElementById('skip-history-list');
+
+
+        if (gameMenuButton && gameMenuContent && gameMenuDropdown) {
+            gameMenuButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isActive = gameMenuDropdown.classList.toggle('active');
+                gameMenuButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+            });
+
+            window.addEventListener('click', (event) => {
+                if (gameMenuDropdown.classList.contains('active')) {
+                    if (!gameMenuDropdown.contains(event.target)) {
+                        gameMenuDropdown.classList.remove('active');
+                        gameMenuButton.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+
+            gameMenuContent.addEventListener('click', () => {
+                gameMenuDropdown.classList.remove('active');
+                gameMenuButton.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showHints = !showHints;
+                renderBoard([]);
+                toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+            });
+        }
+
+        if (restartDropdownLink) {
+            restartDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (animationInProgress || isViewingHistory) return;
+                stopReplay();
+                initializeGame();
+            });
+        }
+
+        if(prevMoveBtn) prevMoveBtn.addEventListener('click', showPreviousMove);
+        if(nextMoveBtn) nextMoveBtn.addEventListener('click', showNextMove);
+        if(replayBtn) replayBtn.addEventListener('click', () => {
+            replayInterval ? stopReplay() : startReplay();
+        });
+
+        // Pause wiring — button toggles, overlay's Resume/Main Menu reflect
+        // the same state. Esc keyboard shortcut is supported for desktop.
+        pauseBtnEl = document.getElementById('pause-btn');
+        pauseOverlayEl = document.getElementById('pause-overlay');
+        const resumeBtn = document.getElementById('resume-btn');
+        const pauseMainMenuBtn = document.getElementById('pause-main-menu-btn');
+        if (pauseBtnEl) pauseBtnEl.addEventListener('click', pauseGame);
+        if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+        if (pauseMainMenuBtn) {
+            pauseMainMenuBtn.addEventListener('click', () => {
+                location.href = 'index.html';
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isPaused) resumeGame();
+            else if (e.key === 'p' && !isPaused && canPause()) pauseGame();
+        });
+
+        initializeGame();
+    });
+
+    // --- Pause helpers ---
+    function canPause() {
+        return !gameOver && !isViewingHistory && !animationInProgress && !isPaused;
+    }
+
+    function updatePauseButtonState() {
+        if (!pauseBtnEl) return;
+        const enabled = canPause();
+        pauseBtnEl.disabled = !enabled;
+        pauseBtnEl.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    }
+
+    function pauseGame() {
+        if (!canPause()) return;
+        isPaused = true;
+        // Freeze the timer — we deliberately don't reset timeLeft, so the
+        // current player picks up exactly where they left off on resume.
+        if (TIMER_ENABLED && timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+        if (pauseOverlayEl) pauseOverlayEl.classList.add('visible');
+        updatePauseButtonState();
+    }
+
+    function resumeGame() {
+        if (!isPaused) return;
+        isPaused = false;
+        if (pauseOverlayEl) pauseOverlayEl.classList.remove('visible');
+        // Resume the clock with whatever time was left at the pause moment.
+        if (TIMER_ENABLED && !gameOver && !isViewingHistory && timeLeft > 0) {
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+        updatePauseButtonState();
+    }
+
+
+     // --- Timer Logic ---
+     function startTimer() {
+        if (!TIMER_ENABLED) return;
+        stopTimer();
+        timeLeft = MOVE_TIME_SECONDS;
+        updateTimerDisplay();
+        timerInterval = setInterval(updateTimer, 1000);
+     }
+
+     function stopTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        if (!TIMER_ENABLED) return;
+         if(timerDisplayElement) timerDisplayElement.classList.remove('low-time');
+     }
+
+     function updateTimer() {
+        if (timeLeft > 0) {
+            timeLeft--;
+            updateTimerDisplay();
+            if (timeLeft <= 5) {
+                timerDisplayElement.classList.add('low-time');
+            }
+        } else {
+            stopTimer();
+            handleTimerEnd();
+        }
+     }
+
+     function updateTimerDisplay() {
+        if(timerDisplayElement) {
+            if (!TIMER_ENABLED) {
+                timerDisplayElement.style.display = 'none';
+                return;
+            }
+             const minutes = Math.floor(timeLeft / 60);
+             const seconds = timeLeft % 60;
+             const formattedTime = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+             timerDisplayElement.textContent = formattedTime;
+        }
+     }
+
+     async function handleTimerEnd() {
+        if (!TIMER_ENABLED) return;
+        if (gameOver || animationInProgress || isViewingHistory) return;
+
+        animationInProgress = true;
+
+        const playerSkipping = (currentPlayer === player1.color) ? player1 : player2;
+
+        const timeoutMessage = `${playerSkipping.name}'s time ran out!`;
+        const timeoutClass = 'skip-message timed-out';
+        const timedOutPlayerColor = currentPlayer;
+
+
+        await showSkipAnimation(playerSkipping.name);
+
+        stopTimer();
+
+        currentPlayer = switchPlayer(currentPlayer);
+        updatePlayerDisplay();
+
+        addHistoryEntry(null, timeoutMessage, timeoutClass, timedOutPlayerColor);
+
+
+        const gameEndedAfterSkip = checkGameOver();
+
+        renderBoard([]);
+
+
+        animationInProgress = false;
+
+        if (gameEndedAfterSkip) return;
+
+         if (!isViewingHistory) {
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip();
+                 }
+             }, 50);
+        }
+     }
+
+     // --- End Timer Logic ---
+
+
+     function loadPlayerSetup() {
+         const setupData = localStorage.getItem('othelloPlayerSetup');
+         if (setupData) {
+             let data = {};
+             try { data = JSON.parse(setupData) || {}; } catch (e) { data = {}; }
+             player1 = {
+                 // Coerce names to strings and trim to a sane length. textContent does the
+                 // hard work of preventing HTML injection downstream.
+                 name: String(data.player1Name || 'Black Player').slice(0, 40),
+                 color: data.player1Color === 'black' ? BLACK : WHITE
+             };
+             player2 = {
+                 name: String(data.player2Name || 'White Player').slice(0, 40),
+                 color: data.player2Color === 'black' ? BLACK : WHITE
+             };
+
+             // Time-limit selection (Phase 4). 0 == unlimited.
+             const seconds = (typeof data.timeLimitSeconds === 'number') ? data.timeLimitSeconds : 30;
+             MOVE_TIME_SECONDS = seconds;
+             TIMER_ENABLED = seconds > 0;
+         } else {
+             player1 = { name: 'Black Player', color: BLACK };
+             player2 = { name: 'White Player', color: WHITE };
+             MOVE_TIME_SECONDS = 30;
+             TIMER_ENABLED = true;
+         }
+
+         if (timerDisplayElement) {
+             timerDisplayElement.style.display = TIMER_ENABLED ? '' : 'none';
+             if (!TIMER_ENABLED) {
+                 timerDisplayElement.textContent = '';
+                 timerDisplayElement.classList.remove('low-time');
+             }
+         }
+
+         currentPlayer = player1.color;
+     }
+
+
+    function initializeBoard() {
+        const newBoard = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+        newBoard[3][3] = WHITE;
+        newBoard[3][4] = BLACK;
+        newBoard[4][3] = BLACK;
+        newBoard[4][4] = WHITE;
+        return newBoard;
+    }
+
+    // Local wrapper around shared isValidMove that adds the history-view guard.
+    function isValidMoveLive(row, col, player) {
+        if (isViewingHistory) return false;
+        return isValidMove(row, col, player, board, directions);
+    }
+
+    // --- History / State Management ---
+
+    function addHistoryEntry(lastPlacedCoords, message, className = '', playerColor = null) {
+        if (currentHistoryIndex < gameHistory.length - 1) {
+            gameHistory = gameHistory.slice(0, currentHistoryIndex + 1);
+            skipHistory = skipHistory.slice(0, currentHistoryIndex + 1);
+            isViewingHistory = false;
+        }
+
+        skipHistory.push({ message: message, class: className, playerColor: playerColor });
+
+        const currentState = {
+            board: copyBoard(board),
+            scores: { ...scores },
+            currentPlayer: currentPlayer,
+            lastPlaced: lastPlacedCoords
+        };
+        gameHistory.push(currentState);
+
+        currentHistoryIndex = gameHistory.length - 1;
+
+        updateSkipHistoryDisplay();
+        updateHistoryButtonStates();
+    }
+
+
+    function applyGameState(state) {
+        stopTimer();
+
+        board = copyBoard(state.board);
+        scores = { ...state.scores };
+        currentPlayer = state.currentPlayer;
+
+        updateScores(board);
+        updatePlayerDisplay();
+        updateTimerDisplay();
+
+
+        renderBoard([]);
+
+        updateSkipHistoryDisplay();
+        updateHistoryButtonStates();
+    }
+
+    function updateHistoryButtonStates() {
+        if (!prevMoveBtn || !nextMoveBtn) return;
+
+        prevMoveBtn.disabled = currentHistoryIndex <= 0;
+        nextMoveBtn.disabled = currentHistoryIndex >= gameHistory.length - 1;
+
+        isViewingHistory = currentHistoryIndex < gameHistory.length - 1;
+
+        const boardElement = document.getElementById('board');
+        if (boardElement) {
+            boardElement.classList.toggle('history-view', isViewingHistory);
+        }
+
+         if(timerDisplayElement) {
+             if (!TIMER_ENABLED) {
+                 timerDisplayElement.style.display = 'none';
+             } else {
+                 timerDisplayElement.style.display = isViewingHistory ? 'none' : '';
+                 if(isViewingHistory) stopTimer();
+             }
+         }
+    }
+
+    function showPreviousMove() {
+         if (animationInProgress || currentHistoryIndex <= 0) return;
+        stopReplay();
+        currentHistoryIndex--;
+        applyGameState(gameHistory[currentHistoryIndex]);
+    }
+
+    async function showNextMove() {
+         if (animationInProgress || currentHistoryIndex >= gameHistory.length - 1) return;
+        stopReplay();
+        currentHistoryIndex++;
+        applyGameState(gameHistory[currentHistoryIndex]);
+
+        if (!isViewingHistory && !gameOver) {
+            setTimeout(async () => {
+                if (!gameOver && !isViewingHistory && !animationInProgress) {
+                   await checkForAutoSkip();
+                }
+            }, 100);
+        }
+    }
+
+    // --- Replay (auto-play recorded history) ---
+    function startReplay() {
+        if (replayInterval || gameHistory.length < 2) return;
+        stopTimer();
+        currentHistoryIndex = 0;
+        applyGameState(gameHistory[0]);
+        renderBoard([]);
+
+        replayInterval = setInterval(() => {
+            if (currentHistoryIndex >= gameHistory.length - 1) {
+                stopReplay();
+                return;
+            }
+            currentHistoryIndex++;
+            applyGameState(gameHistory[currentHistoryIndex]);
+            renderBoard([]);
+            updateHistoryButtonStates();
+        }, REPLAY_SPEED_MS);
+
+        if (replayBtn) replayBtn.innerHTML = '<i class="fas fa-stop"></i>';
+    }
+
+    function stopReplay() {
+        if (replayInterval) {
+            clearInterval(replayInterval);
+            replayInterval = null;
+        }
+        if (replayBtn) replayBtn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+
+    // --- End History / State Management ---
+
+
+     function getValidMoves(player, currentBoard = board) {
+        if (isViewingHistory && currentBoard === board) return [];
+
+        const validMoves = [];
+        if (!currentBoard) return validMoves;
+
+        currentBoard.forEach((row, rowIndex) =>
+            row.forEach((_, colIndex) => {
+                if (currentBoard[rowIndex][colIndex] === EMPTY) {
+                     const flips = getFlipCount(rowIndex, colIndex, player, currentBoard);
+                     if (flips > 0) {
+                          validMoves.push([rowIndex, colIndex, flips]);
+                     }
+                }
+            })
+        );
+        return validMoves;
+    }
+
+    function getFlipCount(row, col, player, currentBoard) {
+        if (!currentBoard || row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE || currentBoard[row][col] !== EMPTY) {
+             return 0;
+        }
+
+        let flipCount = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            let piecesToFlipInDirection = 0;
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (currentBoard[x][y] === EMPTY) break;
+                if (currentBoard[x][y] === player) {
+                    if (piecesToFlipInDirection > 0) {
+                        flipCount += piecesToFlipInDirection;
+                    }
+                    break;
+                }
+                if (currentBoard[x][y] === opponent) {
+                    piecesToFlipInDirection++;
+                } else {
+                    break;
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+        return flipCount;
+    }
+
+
+    function flipPieces(row, col, player, currentBoard) {
+        const boardToModify = (currentBoard === board) ? board : copyBoard(currentBoard);
+
+        if (boardToModify[row][col] !== EMPTY) {
+             console.error("flipPieces called on non-empty cell", {row: row, col: col, player: player, boardState: copyBoard(boardToModify)});
+             return {newBoard: currentBoard === board ? board : copyBoard(currentBoard), flippedPieces: [], placedPiece: null};
+        }
+        boardToModify[row][col] = player;
+
+        const placedPiece = {x: row, y: col};
+
+        const flippedPieces = [];
+
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        directions.forEach(([dx, dy]) => {
+            let x = row + dx, y = col + dy;
+            const piecesToFlipInDirection = [];
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (boardToModify[x][y] === EMPTY) break;
+                if (boardToModify[x][y] === player) {
+                    if (piecesToFlipInDirection.length > 0) {
+                        piecesToFlipInDirection.forEach(([fx, fy]) => {
+                            boardToModify[fx][fy] = player;
+                             if (currentBoard === board) {
+                                flippedPieces.push({x: fx, y: fy, original: opponent, new: player});
+                             }
+                        });
+                    }
+                    break;
+                }
+                if (boardToModify[x][y] === opponent) {
+                    piecesToFlipInDirection.push([x, y]);
+                } else {
+                    break;
+                }
+                x += dx;
+                y += dy;
+            }
+        });
+         const finalBoardState = (currentBoard === board) ? board : boardToModify;
+        return {newBoard: finalBoardState, flippedPieces, placedPiece};
+    }
+
+
+    function updateScores(currentBoard) {
+        let blackCount = 0, whiteCount = 0;
+        if (!currentBoard) return;
+        currentBoard.forEach(row => row.forEach(cell => {
+            if (cell === BLACK) blackCount++;
+            if (cell === WHITE) whiteCount++;
+        }));
+        scores = {black: blackCount, white: whiteCount};
+
+        const blackPlayerName = player1.color === BLACK ? player1.name : player2.name;
+        const whitePlayerName = player1.color === WHITE ? player1.name : player2.name;
+
+        // textContent guarantees player-supplied names are inserted as text only.
+        document.getElementById('black-score').textContent = `${blackPlayerName} : ${scores.black}`;
+        document.getElementById('white-score').textContent = `${whitePlayerName} : ${scores.white}`;
+    }
+
+    function updatePlayerDisplay() {
+        const blackScoreDiv = document.getElementById('black-score');
+        const whiteScoreDiv = document.getElementById('white-score');
+
+        blackScoreDiv.classList.remove('current-player', 'black-turn-active');
+        whiteScoreDiv.classList.remove('current-player', 'white-turn-active');
+
+        if (!isViewingHistory && !gameOver) {
+             const currentPlayerColor = currentPlayer;
+
+             if (player1.color === currentPlayerColor) {
+                 const scoreDiv = (currentPlayerColor === BLACK) ? blackScoreDiv : whiteScoreDiv;
+                 scoreDiv.classList.add('current-player', currentPlayerColor === BLACK ? 'black-turn-active' : 'white-turn-active');
+             } else if (player2.color === currentPlayerColor){
+                 const scoreDiv = (currentPlayerColor === BLACK) ? blackScoreDiv : whiteScoreDiv;
+                  scoreDiv.classList.add('current-player', currentPlayerColor === BLACK ? 'black-turn-active' : 'white-turn-active');
+             }
+        }
+    }
+
+    function savePvpResult(result) {
+        // result: 'w' (black wins), 'l' (white wins), 'd' (tie).
+        // PvP doesn't have a "you" so we record from the BLACK player's
+        // POV — this keeps the {w,l,d} shape consistent with bot/online
+        // stats so the totals math just adds up cleanly.
+        if (pvpGameCounted) return;
+        pvpGameCounted = true;
+        if (window.OthelloStats && typeof window.OthelloStats.recordPvp === 'function') {
+            window.OthelloStats.recordPvp(result);
+            return;
+        }
+        const count = parseInt(localStorage.getItem('stats-pvp-games') || '0', 10);
+        localStorage.setItem('stats-pvp-games', String(count + 1));
+    }
+
+    function checkGameOver() {
+        if (isViewingHistory && !gameOver) return false;
+        if (gameOver && isViewingHistory) return true;
+
+
+        const blackMoves = getValidMoves(BLACK);
+        const whiteMoves = getValidMoves(WHITE);
+
+        if (blackMoves.length === 0 && whiteMoves.length === 0) {
+            gameOver = true;
+
+             const blackScore = scores.black;
+             const whiteScore = scores.white;
+
+             const blackPlayerName = player1.color === BLACK ? player1.name : player2.name;
+             const whitePlayerName = player1.color === WHITE ? player1.name : player2.name;
+
+             let winnerMessage;
+             if (blackScore > whiteScore) {
+                 winnerMessage = `${blackPlayerName} Wins!`;
+             } else if (whiteScore > blackScore) {
+                 winnerMessage = `${whitePlayerName} Wins!`;
+             } else {
+                 winnerMessage = "It's a Tie!";
+             }
+
+            // Build the game-over node via textContent so player names cannot inject HTML.
+            const gameOverDiv = document.createElement('div');
+            gameOverDiv.className = 'game-over';
+            gameOverDiv.textContent = `Game Over! ${winnerMessage}`;
+            const gameOverHost = document.getElementById('game-over');
+            gameOverHost.textContent = '';
+            gameOverHost.appendChild(gameOverDiv);
+
+            // Persist PvP result (from black's POV) + play end-of-game sound.
+            const pvpResult = blackScore > whiteScore ? 'w'
+                : whiteScore > blackScore ? 'l'
+                : 'd';
+            savePvpResult(pvpResult);
+            SoundManager.win();
+            if (replayBtn) replayBtn.style.display = '';
+
+             if (!skipHistory.length || (skipHistory[skipHistory.length - 1] && skipHistory[skipHistory.length - 1].message !== "Game Over!")) {
+                  skipHistory.push({ message: "Game Over!", class: 'system-message', playerColor: null });
+                  updateSkipHistoryDisplay();
+             } else {
+                 updateSkipHistoryDisplay();
+                 updateHistoryButtonStates();
+             }
+
+            stopTimer();
+
+            return true;
+        }
+
+        if(gameOver && !isViewingHistory && (blackMoves.length > 0 || whiteMoves.length > 0)) {
+             gameOver = false;
+             document.getElementById('game-over').textContent = '';
+             if (replayBtn) replayBtn.style.display = 'none';
+        }
+        return false;
+    }
+
+    function isGameOver(currentBoard) {
+        const blackMoves = getValidMoves(BLACK, currentBoard);
+        const whiteMoves = getValidMoves(WHITE, currentBoard);
+        return blackMoves.length === 0 && whiteMoves.length === 0;
+    }
+
+
+    function renderBoard(piecesToAnimate = [], placedAt = null) {
+        if (!board || cells.length === 0 || currentHistoryIndex < 0 || !gameHistory[currentHistoryIndex]) {
+            return;
+        }
+
+        const stateBeingViewed = gameHistory[currentHistoryIndex];
+        const playerForHints = stateBeingViewed.currentPlayer;
+        const validMoves = (!isViewingHistory && showHints && !gameOver) ? getValidMoves(playerForHints) : [];
+        const playerForHintsColorName = playerForHints === BLACK ? 'black' : 'white';
+
+
+        const stateLastPlaced = stateBeingViewed.lastPlaced;
+
+        board.forEach((row, rowIndex) => {
+            row.forEach((cell, colIndex) => {
+                const cellElement = cells[rowIndex][colIndex];
+                if (!cellElement) return;
+
+                // ARIA: keep label in sync so screen readers track piece state.
+                const cellLabel = `${String.fromCharCode(65 + colIndex)}${rowIndex + 1}, ` +
+                    `${cell === BLACK ? 'black piece' : cell === WHITE ? 'white piece' : 'empty'}`;
+                cellElement.setAttribute('aria-label', cellLabel);
+
+                const isHint = validMoves.some(([x, y]) => x === rowIndex && y === colIndex);
+                cellElement.classList.toggle('hint', isHint);
+                if (isHint) {
+                     cellElement.dataset.player = playerForHintsColorName;
+                     cellElement.style.cursor = (!isViewingHistory && !animationInProgress && playerForHints === currentPlayer) ? 'pointer' : 'default';
+                     cellElement.setAttribute('aria-describedby', 'valid-move');
+                } else {
+                    delete cellElement.dataset.player;
+                     cellElement.style.cursor = (isViewingHistory || gameOver || animationInProgress || playerForHints !== currentPlayer) ? 'default' : 'pointer';
+                     cellElement.removeAttribute('aria-describedby');
+                }
+
+
+                let piece = cellElement.querySelector('.piece');
+                const targetPieceColor = cell;
+                const targetPieceColorName = targetPieceColor === BLACK ? 'black' : (targetPieceColor === WHITE ? 'white' : null);
+
+
+                if (targetPieceColor !== EMPTY) {
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.className = 'piece';
+                        const blackFace = document.createElement('div');
+                        blackFace.className = 'piece-face black';
+                        const whiteFace = document.createElement('div');
+                        whiteFace.className = 'piece-face white';
+                        piece.appendChild(blackFace);
+                        piece.appendChild(whiteFace);
+                        cellElement.appendChild(piece);
+
+                        piece.classList.add(`color-${targetPieceColorName}`);
+
+                        // Premium place burst — ripple + pop + sparkles.
+                        // Gated by animationInProgress so the initial board
+                        // state and history-scrub re-renders don't fire bursts.
+                        if (!isViewingHistory && animationInProgress) {
+                            const ripple = document.createElement('span');
+                            ripple.className = 'place-ripple';
+                            cellElement.insertBefore(ripple, piece);
+                            ripple.addEventListener('animationend',
+                                () => ripple.remove(), { once: true });
+
+                            piece.classList.add('place-pop');
+                            piece.addEventListener('animationend',
+                                () => piece.classList.remove('place-pop'),
+                                { once: true });
+
+                            spawnSparkles(cellElement, 6);
+                        }
+
+                    } else {
+                         const currentPieceColorName = piece.classList.contains('color-black') ? 'black' : (piece.classList.contains('color-white') ? 'white' : null);
+
+                         if (currentPieceColorName !== targetPieceColorName) {
+                             const shouldAnimate = piecesToAnimate.some(p => p.x === rowIndex && p.y === colIndex && p.new === targetPieceColor && p.original !== EMPTY);
+
+                              if (shouldAnimate && !isViewingHistory && animationInProgress) {
+                                 // Ripple-out flip: discs further from the placed
+                                 // piece start their squash later, so the user
+                                 // can follow the capture chain visually. The
+                                 // color class is swapped at the squash midpoint
+                                 // (scaleX(0)) so the change is hidden under the
+                                 // disc's pinched silhouette and looks like a
+                                 // real flip. Timing constants live in shared.js.
+                                 const oldName = currentPieceColorName;
+                                 const newName = targetPieceColorName;
+                                 const startDelay = flipStartDelayMs({ x: rowIndex, y: colIndex }, placedAt);
+                                 const swapAt     = startDelay + FLIP_TIMING.squashDurationMs / 2;
+                                 const endAt      = startDelay + FLIP_TIMING.squashDurationMs;
+                                 setTimeout(() => piece.classList.add('flipping'), startDelay);
+                                 setTimeout(() => {
+                                     if (oldName) piece.classList.remove(`color-${oldName}`);
+                                     piece.classList.add(`color-${newName}`);
+                                 }, swapAt);
+                                 setTimeout(() => piece.classList.remove('flipping'), endAt);
+                              } else {
+                                  if (currentPieceColorName) piece.classList.remove(`color-${currentPieceColorName}`);
+                                  piece.classList.add(`color-${targetPieceColorName}`);
+                              }
+                         }
+                    }
+
+                    piece.classList.toggle('last-move-piece', isLastPlaced(rowIndex, colIndex, stateLastPlaced));
+
+                } else {
+                    if (piece) {
+                        piece.remove();
+                    }
+                    cellElement.classList.remove('last-move-cell-hint');
+                }
+
+                 if(isCorner(rowIndex, colIndex)) {
+                     cellElement.classList.add('corner-dot');
+                 } else {
+                      cellElement.classList.remove('corner-dot');
+                 }
+            });
+        });
+
+        // Pause button state piggybacks on the central render path so it
+        // always stays in sync with gameOver / animationInProgress / history
+        // view — no need to remember to update it at every transition site.
+        updatePauseButtonState();
+    }
+
+
+    function updateSkipHistoryDisplay() {
+        if (!skipHistoryList) return;
+        skipHistoryList.textContent = '';
+
+        if (isViewingHistory) {
+             const messageItem = document.createElement('li');
+             messageItem.textContent = "(Viewing historical state)";
+             messageItem.classList.add('history-view-message');
+             skipHistoryList.appendChild(messageItem);
+
+             const displayHistory = skipHistory.slice(0, currentHistoryIndex + 1);
+
+             displayHistory.forEach(item => {
+                 if (item.class && item.class.includes('history-view-message')) return;
+
+                const listItem = document.createElement('li');
+                // textContent ensures messages (which may include player names) never inject HTML.
+                listItem.textContent = item.message;
+
+                 const classesToAdd = (item.class || '').split(' ').filter(c => c);
+
+                 if (item.playerColor === BLACK) {
+                     classesToAdd.push('player-black');
+                 } else if (item.playerColor === WHITE) {
+                     classesToAdd.push('player-white');
+                 } else {
+                     classesToAdd.push('system-message');
+                 }
+
+                 if (classesToAdd.length > 0) {
+                    listItem.classList.add(...classesToAdd);
+                 }
+
+                skipHistoryList.appendChild(listItem);
+             });
+
+
+        } else {
+             skipHistory.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.textContent = item.message;
+
+                 const classesToAdd = (item.class || '').split(' ').filter(c => c);
+
+                 if (item.playerColor === BLACK) {
+                     classesToAdd.push('player-black');
+                 } else if (item.playerColor === WHITE) {
+                     classesToAdd.push('player-white');
+                 } else {
+                     classesToAdd.push('system-message');
+                 }
+
+                 if (classesToAdd.length > 0) {
+                    listItem.classList.add(...classesToAdd);
+                 }
+
+                skipHistoryList.appendChild(listItem);
+             });
+             skipHistoryList.scrollTop = skipHistoryList.scrollHeight;
+        }
+    }
+
+    function showSkipAnimation(playerName) {
+        const overlay = document.getElementById('skip-turn-overlay');
+        const playerMessageSpan = document.getElementById('skip-player-message');
+
+        playerMessageSpan.textContent = playerName;
+        overlay.classList.add('visible');
+        SoundManager.skip();
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                setTimeout(resolve, 300);
+            }, 1500);
+        });
+    }
+
+
+    async function autoSkipTurn() {
+        if (gameOver || isViewingHistory || animationInProgress) return;
+
+        animationInProgress = true;
+
+        const playerSkipping = (currentPlayer === player1.color) ? player1 : player2;
+
+        const skipMessage = `${playerSkipping.name} had no valid moves!`;
+        const skipClass = 'skip-message';
+        const skipPlayerColor = currentPlayer;
+
+
+        await showSkipAnimation(playerSkipping.name);
+
+        stopTimer();
+
+        currentPlayer = switchPlayer(currentPlayer);
+        updatePlayerDisplay();
+
+        addHistoryEntry(null, skipMessage, skipClass, skipPlayerColor);
+
+
+        const gameEndedAfterSkip = checkGameOver();
+
+        renderBoard([]);
+
+
+        animationInProgress = false;
+
+        if (gameEndedAfterSkip) return;
+
+         if (!isViewingHistory) {
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                      await checkForAutoSkip();
+                 }
+             }, 50);
+        }
+    }
+
+
+    async function checkForAutoSkip() {
+        if (gameOver || isViewingHistory || animationInProgress) return false;
+
+        const validMoves = getValidMoves(currentPlayer);
+
+        if (validMoves.length === 0) {
+             if (checkGameOver()) {
+                 return false;
+             } else {
+                 await autoSkipTurn();
+                 return true;
+             }
+        } else {
+            renderBoard([]);
+            startTimer();
+            return false;
+        }
+    }
+
+
+    // --- Evaluation Logic (Minimax structure, simple evaluation) ---
+
+    function evaluateBoard(currentBoard, player) {
+        let playerScore = 0;
+        let opponentScore = 0;
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                if (currentBoard[i][j] === player) {
+                    playerScore++;
+                } else if (currentBoard[i][j] === opponent) {
+                    opponentScore++;
+                }
+            }
+        }
+
+        const corners = [[0, 0], [0, 7], [7, 0], [7, 7]];
+        corners.forEach(([r, c]) => {
+            if (currentBoard[r][c] === player) playerScore += 25;
+            else if (currentBoard[r][c] === opponent) opponentScore -= 25;
+        });
+
+         cSquares.forEach(([r, c]) => {
+             const cornerR = (r === 1 || r === 6) ? (r === 1 ? 0 : 7) : r;
+             const cornerC = (c === 1 || c === 6) ? (c === 1 ? 0 : 7) : c;
+
+              if (currentBoard[r][c] === player && currentBoard[cornerR][cornerC] === EMPTY) {
+                  playerScore -= 15;
+              } else if (currentBoard[r][c] === opponent && currentBoard[cornerR][cornerC] === EMPTY) {
+                   opponentScore -= 15;
+              }
+         });
+
+
+        return playerScore - opponentScore;
+    }
+
+    function minimaxNegamax(currentBoard, depth, player, alpha, beta) {
+        const opponent = (player === BLACK) ? WHITE : BLACK;
+
+        if (depth === 0 || isGameOver(currentBoard)) {
+             return evaluateBoard(currentBoard, player);
+        }
+
+        const validMoves = getValidMoves(player, copyBoard(currentBoard)).map(move => [move[0], move[1]]);
+
+        if (validMoves.length === 0) {
+             if (isGameOver(currentBoard)) {
+                  return evaluateBoard(currentBoard, player);
+             } else {
+                  return -minimaxNegamax(currentBoard, depth - 1, opponent, -beta, -alpha);
+             }
+        }
+
+        let maxEval = -Infinity;
+        for (const [r, c] of validMoves) {
+            const { newBoard } = flipPieces(r, c, player, copyBoard(currentBoard));
+            const evaluation = -minimaxNegamax(newBoard, depth - 1, opponent, -beta, -alpha);
+
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break;
+        }
+
+        return maxEval;
+    }
+
+
+    // --- Move Evaluation Feedback Logic ---
+
+    function getFeedback(chosenMoveCoords, allPossibleMovesWithEvaluations, playerColor) {
+        const [chosenR, chosenC] = chosenMoveCoords;
+        const playerMakingMove = (player1.color === playerColor) ? player1 : player2;
+        const playerName = playerMakingMove.name;
+        const opponentColor = (playerColor === BLACK) ? WHITE : BLACK;
+
+
+        if (!allPossibleMovesWithEvaluations || allPossibleMovesWithEvaluations.length === 0) {
+             return { message: `${playerName} made a move.`, className: '', playerColor: playerColor };
+        }
+
+         let maxPossibleValue = -Infinity;
+         if (allPossibleMovesWithEvaluations.length > 0) {
+             maxPossibleValue = Math.max(...allPossibleMovesWithEvaluations.map(m => m.value));
+         } else {
+              return { message: `${playerName} made a move.`, className: '', playerColor: playerColor };
+         }
+
+
+        const chosenMoveEntry = allPossibleMovesWithEvaluations.find(m => m.move[0] === chosenR && m.move[1] === chosenC);
+        const chosenMoveValue = chosenMoveEntry ? chosenMoveEntry.value : null;
+
+        if (chosenMoveValue === null) {
+             return { message: `${playerName} made a move. (Eval Error)`, className: '', playerColor: playerColor };
+        }
+
+        const valueDifference = maxPossibleValue - chosenMoveValue;
+
+        const thresholds = {
+             optimal: 0,
+             good: 5,
+             okay: 15
+        };
+
+         const coordsString = ` (${String.fromCharCode(65 + chosenC)}${chosenR + 1})`;
+
+
+         if (isCorner(chosenR, chosenC)) {
+               if (valueDifference <= thresholds.good) {
+                   return { message: `${playerName} took a Corner! Super Move!${coordsString}`, className: 'feedback-optimal', playerColor: playerColor };
+              } else {
+                  return { message: `${playerName} took a Corner${coordsString}, but be careful!`, className: 'feedback-risky', playerColor: playerColor };
+              }
+         }
+
+         if (isCSquare(chosenR, chosenC)) {
+               // Move was already applied to `board` by the caller, so the
+               // opponent's available responses are the valid moves from the
+               // current state. Re-simulating would log a false-positive
+               // "flipPieces called on non-empty cell" warning.
+               const opponentNextMoves = getValidMoves(opponentColor, board);
+               let opponentCanTakeCorner = false;
+               for(const [or, oc] of opponentNextMoves) {
+                    if(isCorner(or, oc)) {
+                         opponentCanTakeCorner = true;
+                         break;
+                    }
+               }
+               if (opponentCanTakeCorner) {
+                    return { message: `${playerName} played a Risky Move${coordsString} - might give opponent a corner!`, className: 'feedback-risky', playerColor: playerColor };
+               }
+         }
+
+
+        let message;
+        let className;
+
+        if (valueDifference <= thresholds.optimal) {
+            message = `${playerName} played a Super Move!${coordsString}`;
+            className = 'feedback-optimal';
+        } else if (valueDifference <= thresholds.good) {
+            message = `${playerName} played a Good Move.${coordsString}`;
+            className = 'feedback-good';
+        } else if (valueDifference <= thresholds.okay) {
+            message = `${playerName} played an Okay Move.${coordsString}`;
+            className = 'feedback-okay';
+        } else {
+            message = `${playerName} played a Less Helpful Move.${coordsString}`;
+            className = 'feedback-suboptimal';
+        }
+
+         return { message: message, className: className, playerColor: playerColor };
+    }
+
+    // --- End Move Evaluation Feedback Logic ---
+
+
+    async function handleMove(row, col) {
+        if (gameOver || animationInProgress || isViewingHistory || isPaused || !isValidMoveLive(row, col, currentPlayer)) {
+            return;
+        }
+        stopReplay();
+
+        stopTimer();
+
+        animationInProgress = true;
+
+        const currentPlayerValidMovesWithFlips = getValidMoves(currentPlayer);
+        let allCurrentPlayerMovesWithEvaluations = [];
+
+         for (const move of currentPlayerValidMovesWithFlips) {
+              const [r, c] = [move[0], move[1]];
+             const { newBoard: simulatedBoard } = flipPieces(r, c, currentPlayer, copyBoard(board));
+
+             const value = -minimaxNegamax(simulatedBoard, FEEDBACK_EVAL_DEPTH - 1, (currentPlayer === BLACK ? WHITE : BLACK), -Infinity, Infinity);
+
+             allCurrentPlayerMovesWithEvaluations.push({ move: [r, c], value: value });
+         }
+
+
+        const { newBoard, flippedPieces, placedPiece } = flipPieces(row, col, currentPlayer, board);
+
+        SoundManager.placePiece();
+
+        board = newBoard;
+
+        renderBoard(flippedPieces, placedPiece);
+
+        // One flip-tone per ring so the audio cascade matches the visual
+        // ripple — beginners can hear individual captures, not a single
+        // muffled tone that hid the chain length.
+        if (flippedPieces.length > 0) {
+            const ringDelays = flipRingStartDelays(flippedPieces, placedPiece);
+            ringDelays.forEach(d => setTimeout(() => SoundManager.flipPiece(), d));
+        }
+
+        const captureWait = Math.max(350, flipTotalDurationMs(flippedPieces, placedPiece));
+        await new Promise(resolve => setTimeout(resolve, captureWait));
+
+        updateScores(board);
+
+        let feedbackMessageObject = null;
+        const playerWhoJustMovedColor = currentPlayer;
+        const playerWhoJustMoved = (playerWhoJustMovedColor === player1.color) ? player1 : player2;
+
+        if (placedPiece) {
+             const feedback = getFeedback([placedPiece.x, placedPiece.y], allCurrentPlayerMovesWithEvaluations, playerWhoJustMovedColor);
+             feedbackMessageObject = feedback;
+        }
+
+
+        currentPlayer = switchPlayer(currentPlayer);
+        updatePlayerDisplay();
+
+
+         if (feedbackMessageObject) {
+              addHistoryEntry(placedPiece, feedbackMessageObject.message, feedbackMessageObject.class, feedbackMessageObject.playerColor);
+         } else {
+            addHistoryEntry(placedPiece, `${playerWhoJustMoved.name} played at (${row}, ${col})`, '', playerWhoJustMovedColor);
+         }
+
+
+        const gameEndedAfterMove = checkGameOver();
+
+        renderBoard([]);
+
+
+        animationInProgress = false;
+
+        if (gameEndedAfterMove) return;
+
+        if (!isViewingHistory) {
+             setTimeout(async () => {
+                 if (!gameOver && !isViewingHistory && !animationInProgress) {
+                     await checkForAutoSkip();
+                 }
+             }, 50);
+        }
+    }
+
+
+    function createBoardElements() {
+        const boardElement = document.getElementById('board');
+        if (!boardElement) {
+            console.error("Board element #board not found!");
+            return;
+        }
+        boardElement.textContent = '';
+        cells = [];
+
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            const rowCells = [];
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                cellElement.setAttribute('role', 'gridcell');
+                cellElement.setAttribute('tabindex', '-1');
+
+                 if (isCorner(i, j)) {
+                     cellElement.classList.add('corner-dot');
+                 }
+
+                cellElement.addEventListener('click', () => handleMove(i, j));
+                cellElement.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    handleMove(i, j);
+                }, { passive: false });
+
+                boardElement.appendChild(cellElement);
+                rowCells.push(cellElement);
+            }
+            cells.push(rowCells);
+        }
+
+        boardElement.style.touchAction = 'manipulation';
+    }
+
+    function initializeGame() {
+        stopReplay();
+        gameOver = false;
+        animationInProgress = false;
+        isViewingHistory = false;
+        pvpGameCounted = false;
+        stopTimer();
+
+        loadPlayerSetup();
+
+        board = initializeBoard();
+        scores = {black: 2, white: 2};
+        skipHistory = [];
+        gameHistory = [];
+        currentHistoryIndex = -1;
+
+
+        addHistoryEntry(null, "Game Start! Good Luck!", 'system-message', null);
+
+
+        createBoardElements();
+        updateScores(board);
+        updatePlayerDisplay();
+
+
+        document.getElementById('game-over').textContent = '';
+        if (replayBtn) replayBtn.style.display = 'none';
+
+
+        renderBoard([]);
+
+        updateHistoryButtonStates();
+
+
+         if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+        }
+
+         setTimeout(async () => {
+            if (!gameOver && !isViewingHistory && !animationInProgress) {
+                 await checkForAutoSkip();
+            }
+        }, 100);
+    }
+</script>
+</body>
+</html>

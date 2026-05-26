@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Othello Story Mode - Level Map</title>
+    <!-- Font Awesome (bundled locally so icons work offline / on first launch) -->
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <link rel="stylesheet" href="style.css">
+    <script src="sounds.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(to bottom, #2D1B69, #11044A);
+            --path-gold: #FFD700;
+            --path-shadow: rgba(0, 0, 0, 0.4);
+            --bubble-locked: #555;
+            --bubble-unlocked: #FF6B9D;
+            --bubble-completed: #7DFF4F;
+            --bubble-current: #FF9500;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: #ffffff;
+            font-family: 'Nunito', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+
+        /* Prevent zooming on inputs/taps */
+        input, button, select {
+            font-size: 16px;
+        }
+
+        header {
+            width: 100%;
+            max-width: 420px;
+            padding: 20px 20px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .back-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .back-btn i {
+            font-size: 1.2rem;
+        }
+
+        .title-container {
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .story-title {
+            font-family: 'Fredoka One', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-size: 2.2rem;
+            margin: 0;
+            color: #FFD700;
+            text-shadow: 3px 3px 0px #11044A, 0 0 10px rgba(255, 215, 0, 0.4);
+            letter-spacing: 1px;
+        }
+
+        /* Progress Card styling */
+        .progress-card {
+            width: 90%;
+            max-width: 380px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 15px 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            margin: 10px auto 15px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .progress-header span {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #FF6B9D;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .star-count {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 215, 0, 0.15);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            padding: 4px 12px;
+            border-radius: 20px;
+            color: #FFD700;
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1rem;
+        }
+
+        .star-count i {
+            animation: star-glow 1.5s infinite alternate;
+        }
+
+        @keyframes star-glow {
+            0% { transform: scale(1); filter: drop-shadow(0 0 2px #FFD700); }
+            100% { transform: scale(1.15); filter: drop-shadow(0 0 6px #FFD700); }
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #FF6B9D 0%, #FFD700 25%, #FF9500 50%, #FFD700 75%, #FF6B9D 100%);
+            background-size: 200% 100%;
+            width: 0%;
+            border-radius: 10px;
+            box-shadow: 0 0 8px rgba(255, 107, 157, 0.6);
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: progress-shimmer 3s linear infinite;
+        }
+
+        @keyframes progress-shimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position:  200% 0; }
+        }
+
+        /* Map Area Scrollable */
+        .map-viewport {
+            width: 100%;
+            max-width: 420px;
+            flex-grow: 1;
+            height: 60vh;
+            overflow-y: auto;
+            position: relative;
+            scrollbar-width: none; /* Firefox */
+            margin-bottom: 20px;
+        }
+
+        .map-viewport::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        .map-container {
+            width: 400px;
+            height: 980px;
+            position: relative;
+            margin: 0 auto;
+            /* Extra bottom safe padding for notched mobile phones */
+            padding-bottom: 50px;
+        }
+
+        /* SVG snake path behind nodes */
+        .map-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Bubble styles */
+        .bubble-node {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            transform: translate(-32px, -32px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Fredoka One', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-size: 1.5rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4), 
+                        inset 0 4px 6px rgba(255,255,255,0.4), 
+                        inset 0 -4px 6px rgba(0,0,0,0.3);
+            z-index: 2;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .bubble-node:hover {
+            transform: translate(-32px, -32px) scale(1.1);
+        }
+
+        .bubble-node:active {
+            transform: translate(-32px, -32px) scale(0.95);
+        }
+
+        .bubble-node.locked {
+            background: radial-gradient(circle at 35% 35%, #777, #444);
+            border: 3px solid #555;
+            color: #aaa;
+            cursor: not-allowed;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .bubble-node.unlocked {
+            background: radial-gradient(circle at 35% 35%, #FF8EB5, #FF4081);
+            border: 3px solid #FFF;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .bubble-node.completed {
+            background: radial-gradient(circle at 35% 35%, #A3FF80, #4CAF50);
+            border: 3px solid #FFF;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .bubble-node.current {
+            background: radial-gradient(circle at 35% 35%, #FFD54F, #FF8F00);
+            border: 3px solid #FFF;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            animation: bubble-pulse 1.5s infinite alternate;
+        }
+
+        @keyframes bubble-pulse {
+            0% {
+                transform: translate(-32px, -32px) scale(1.0);
+                box-shadow: 0 6px 12px rgba(255,143,0,0.4), 0 0 10px rgba(255,143,0,0.4);
+            }
+            100% {
+                transform: translate(-32px, -32px) scale(1.1);
+                box-shadow: 0 8px 16px rgba(255,143,0,0.6), 0 0 20px rgba(255,143,0,0.6);
+            }
+        }
+
+        /* Shine reflection on active/completed bubbles */
+        .bubble-node::after {
+            content: '';
+            position: absolute;
+            top: 6%;
+            left: 16%;
+            width: 32%;
+            height: 16%;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+            transform: rotate(-15deg);
+            pointer-events: none;
+        }
+
+        .bubble-node.locked::after {
+            display: none;
+        }
+
+        @keyframes wiggle {
+            0%, 100% { transform: translate(-32px, -32px) rotate(0deg); }
+            20%, 60% { transform: translate(-32px, -32px) rotate(-10deg); }
+            40%, 80% { transform: translate(-32px, -32px) rotate(10deg); }
+        }
+
+        .bubble-node.wiggle {
+            animation: wiggle 0.4s ease;
+        }
+
+        /* Star container under bubbles */
+        .star-container {
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            width: 80px;
+            left: 50%;
+            transform: translateX(-40px);
+            bottom: -22px;
+            z-index: 3;
+        }
+
+        .star-container i {
+            font-size: 0.8rem;
+            color: #555;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+            display: inline-block;
+            transform: scale(0) rotate(-15deg);
+            opacity: 0;
+            animation: cc-pop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .star-container i:nth-child(1) { animation-delay: 0.10s; }
+        .star-container i:nth-child(2) { animation-delay: 0.20s; }
+        .star-container i:nth-child(3) { animation-delay: 0.30s; }
+
+        .star-container i.gold {
+            color: #FFD700;
+            text-shadow: 0 0 4px rgba(255,215,0,0.8);
+        }
+
+        @keyframes cc-pop {
+            0%   { transform: scale(0) rotate(-15deg); opacity: 0; }
+            70%  { transform: scale(1.25) rotate(5deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* Level name label under bubble (sits below the stars) */
+        .level-name-label {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: -42px;
+            font-family: 'Fredoka One', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            white-space: nowrap;
+            max-width: 110px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            pointer-events: none;
+            letter-spacing: 0.3px;
+            z-index: 3;
+        }
+
+        .bubble-node.locked + .level-name-label,
+        .bubble-node.locked .level-name-label {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        /* Level details modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(17, 4, 74, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .level-modal {
+            background: linear-gradient(135deg, #2d1b69, #1a0a4e);
+            border: 3px solid var(--path-gold);
+            border-radius: 24px;
+            padding: 30px;
+            width: 90%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 15px rgba(255, 215, 0, 0.2);
+            transform: scale(0.85);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-sizing: border-box;
+        }
+
+        .modal-overlay.show .level-modal {
+            transform: scale(1);
+        }
+
+        .modal-level-num {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1.4rem;
+            color: #FF6B9D;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .modal-level-name {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 2rem;
+            color: #ffffff;
+            margin: 0 0 15px 0;
+            text-shadow: 2px 2px 0px #11044A;
+        }
+
+        .modal-level-desc {
+            font-size: 1.1rem;
+            color: #e0e0ff;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+
+        .modal-stars {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .modal-star {
+            font-size: 2.2rem;
+            color: #444466;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .modal-star.gold {
+            color: #FFD700;
+            text-shadow: 0 0 10px rgba(255,215,0,0.6);
+        }
+
+        .modal-best-score {
+            font-size: 0.95rem;
+            color: #a5a5ff;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+
+        .modal-btn {
+            font-family: 'Fredoka One', sans-serif;
+            font-size: 1.2rem;
+            padding: 12px 35px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .modal-btn-play {
+            background: linear-gradient(135deg, #FF6B9D, #FF9500);
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            margin-bottom: 12px;
+        }
+
+        .modal-btn-play:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(255, 107, 157, 0.4);
+        }
+
+        .modal-btn-close {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .modal-btn-close:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+    </style>
+    <script src="assets/vendor/purify.min.js"></script>
+    <!-- Defensive fallback so the page still renders if DOMPurify fails to
+         load — otherwise renderMap() throws and we end up with the snake
+         path drawn but every level bubble missing (the bug from before). -->
+    <script>
+        if (!window.DOMPurify) {
+            window.DOMPurify = { sanitize: function (s) { return String(s == null ? '' : s); } };
+        }
+    </script>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="back-btn" aria-label="Back to Main Menu">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div class="title-container">
+            <h1 class="story-title">Story Mode</h1>
+        </div>
+        <div style="width: 44px;"></div> <!-- visual spacer -->
+    </header>
+
+    <!-- Progress Dashboard -->
+    <div class="progress-card">
+        <div class="progress-header">
+            <span>Map Progress</span>
+            <div class="star-count">
+                <i class="fas fa-star"></i>
+                <span id="header-stars-display">0 / 45</span>
+            </div>
+        </div>
+        <div class="bar-container">
+            <div id="progress-bar-fill" class="progress-fill"></div>
+        </div>
+    </div>
+
+    <!-- Map Viewport -->
+    <div class="map-viewport" id="map-viewport">
+        <div class="map-container">
+            <!-- Serpentine SVG Line Path -->
+            <svg class="map-svg" width="400" height="980" viewBox="0 0 400 980">
+                <defs>
+                    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.5"/>
+                    </filter>
+                </defs>
+                <!-- Shadows -->
+                <path d="M 80 840 C 140 840, 140 840, 200 840 C 260 840, 260 840, 320 840 C 390 840, 390 660, 320 660 C 260 660, 260 660, 200 660 C 140 660, 140 660, 80 660 C 10 660, 10 480, 80 480 C 140 480, 140 480, 200 480 C 260 480, 260 480, 320 480 C 390 480, 390 300, 320 300 C 260 300, 260 300, 200 300 C 140 300, 140 300, 80 300 C 10 300, 10 120, 80 120 C 140 120, 140 120, 200 120 C 260 120, 260 120, 320 120"
+                      fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="12" stroke-linecap="round" filter="url(#shadow)" />
+                <!-- Gold path -->
+                <path d="M 80 840 C 140 840, 140 840, 200 840 C 260 840, 260 840, 320 840 C 390 840, 390 660, 320 660 C 260 660, 260 660, 200 660 C 140 660, 140 660, 80 660 C 10 660, 10 480, 80 480 C 140 480, 140 480, 200 480 C 260 480, 260 480, 320 480 C 390 480, 390 300, 320 300 C 260 300, 260 300, 200 300 C 140 300, 140 300, 80 300 C 10 300, 10 120, 80 120 C 140 120, 140 120, 200 120 C 260 120, 260 120, 320 120"
+                      fill="none" stroke="#FFD700" stroke-width="8" stroke-linecap="round" id="gold-trail" />
+                <!-- Inner white dashed dash lines -->
+                <path d="M 80 840 C 140 840, 140 840, 200 840 C 260 840, 260 840, 320 840 C 390 840, 390 660, 320 660 C 260 660, 260 660, 200 660 C 140 660, 140 660, 80 660 C 10 660, 10 480, 80 480 C 140 480, 140 480, 200 480 C 260 480, 260 480, 320 480 C 390 480, 390 300, 320 300 C 260 300, 260 300, 200 300 C 140 300, 140 300, 80 300 C 10 300, 10 120, 80 120 C 140 120, 140 120, 200 120 C 260 120, 260 120, 320 120"
+                      fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-dasharray="6, 10" opacity="0.75" />
+            </svg>
+
+            <!-- Dynamically populated bubble nodes -->
+            <div id="nodes-container"></div>
+        </div>
+    </div>
+
+    <!-- Level Detail Preview Modal -->
+    <div class="modal-overlay" id="level-modal-overlay">
+        <div class="level-modal">
+            <span class="modal-level-num" id="modal-level-num">Level 1</span>
+            <h2 class="modal-level-name" id="modal-level-name">First Flip</h2>
+            <p class="modal-level-desc" id="modal-level-desc">Beat the Easy bot to get started!</p>
+            
+            <div class="modal-stars" id="modal-stars-container">
+                <i class="fas fa-star modal-star"></i>
+                <i class="fas fa-star modal-star"></i>
+                <i class="fas fa-star modal-star"></i>
+            </div>
+            
+            <div class="modal-best-score" id="modal-best-score">Best Score: --</div>
+            
+            <button class="modal-btn modal-btn-play" id="modal-play-btn">PLAY</button>
+            <button class="modal-btn modal-btn-close" id="modal-close-btn">BACK</button>
+        </div>
+    </div>
+
+    <script>
+        const LEVELS = [
+          { id:1,  name:"First Flip",    diff:1, timer:0,   hint:true,  desc:"Beat the Easy bot to get started!" },
+          { id:2,  name:"Corner Rush",   diff:1, timer:90,  hint:true,  desc:"Win before the clock runs out!" },
+          { id:3,  name:"Green Machine", diff:1, timer:0,   hint:true,  desc:"Win by 10+ pieces!" },
+          { id:4,  name:"Speed Demon",   diff:1, timer:45,  hint:true,  desc:"45 seconds. Go!" },
+          { id:5,  name:"Medium Rising", diff:2, timer:0,   hint:true,  desc:"The bot just got smarter." },
+          { id:6,  name:"Balanced Board",diff:2, timer:0,   hint:true,  desc:"Win with style — close margin." },
+          { id:7,  name:"Blitz",         diff:2, timer:30,  hint:false, desc:"Think fast. No time to breathe." },
+          { id:8,  name:"Comeback Kid",  diff:2, timer:0,   hint:false, desc:"Fall behind, then conquer." },
+          { id:9,  name:"The Grinder",   diff:3, timer:0,   hint:false, desc:"Hard bot. No mercy." },
+          { id:10, name:"Endgame",       diff:3, timer:120, hint:false, desc:"2 minutes against the best." },
+          { id:11, name:"Domination",    diff:3, timer:0,   hint:false, desc:"Win by 20+ pieces. Can you?" },
+          { id:12, name:"Clock Master",  diff:3, timer:60,  hint:false, desc:"Win AND save time." },
+          { id:13, name:"Grandmaster",   diff:3, timer:0,   hint:false, desc:"Prove you belong at the top." },
+          { id:14, name:"No Mercy",      diff:3, timer:0,   hint:false, desc:"Hard bot + no hints. Just you." },
+          { id:15, name:"Champion",      diff:3, timer:45,  hint:false, desc:"The ultimate Othello challenge!" },
+        ];
+
+        const LEVEL_POSITIONS = {
+          1: { x: 80, y: 840 },
+          2: { x: 200, y: 840 },
+          3: { x: 320, y: 840 },
+          4: { x: 320, y: 660 },
+          5: { x: 200, y: 660 },
+          6: { x: 80, y: 660 },
+          7: { x: 80, y: 480 },
+          8: { x: 200, y: 480 },
+          9: { x: 320, y: 480 },
+          10: { x: 320, y: 300 },
+          11: { x: 200, y: 300 },
+          12: { x: 80, y: 300 },
+          13: { x: 80, y: 120 },
+          14: { x: 200, y: 120 },
+          15: { x: 320, y: 120 }
+        };
+
+        // --- Custom Tooltip helper ---
+        function showTooltip(message) {
+            let tooltip = document.getElementById("toast-tooltip");
+            if (!tooltip) {
+                tooltip = document.createElement("div");
+                tooltip.id = "toast-tooltip";
+                tooltip.style.cssText = `
+                    position: fixed;
+                    bottom: 30px;
+                    left: 50%;
+                    transform: translateX(-50%) translateY(20px);
+                    background: rgba(45, 27, 105, 0.95);
+                    color: #FFD700;
+                    border: 2px solid #FFD700;
+                    border-radius: 12px;
+                    padding: 10px 20px;
+                    font-family: 'Nunito', sans-serif;
+                    font-size: 0.95rem;
+                    font-weight: bold;
+                    box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+                    opacity: 0;
+                    transition: opacity 0.3s, transform 0.3s;
+                    z-index: 10000;
+                    pointer-events: none;
+                    text-align: center;
+                    width: 80%;
+                    max-width: 300px;
+                `;
+                document.body.appendChild(tooltip);
+            }
+            tooltip.textContent = message;
+            tooltip.style.opacity = "1";
+            tooltip.style.transform = "translateX(-50%) translateY(0)";
+            
+            clearTimeout(window.tooltipTimeout);
+            window.tooltipTimeout = setTimeout(() => {
+                tooltip.style.opacity = "0";
+                tooltip.style.transform = "translateX(-50%) translateY(20px)";
+            }, 2000);
+        }
+
+        // --- LocalStorage progress parsing ---
+        function loadProgress() {
+            let progress = localStorage.getItem("othello_level_progress");
+            if (!progress) {
+                progress = {
+                    levels: {},
+                    totalStars: 0,
+                    lastPlayedLevel: 1
+                };
+                for (let i = 1; i <= 15; i++) {
+                    progress.levels[i] = {
+                        stars: 0,
+                        bestScore: null,
+                        unlocked: i === 1,
+                        completed: false
+                    };
+                }
+                localStorage.setItem("othello_level_progress", JSON.stringify(progress));
+            } else {
+                try {
+                    progress = JSON.parse(progress);
+                } catch(e) {
+                    progress = null;
+                }
+                if (!progress || !progress.levels) {
+                    progress = {
+                        levels: {},
+                        totalStars: 0,
+                        lastPlayedLevel: 1
+                    };
+                    for (let i = 1; i <= 15; i++) {
+                        progress.levels[i] = {
+                            stars: 0,
+                            bestScore: null,
+                            unlocked: i === 1,
+                            completed: false
+                        };
+                    }
+                    localStorage.setItem("othello_level_progress", JSON.stringify(progress));
+                }
+            }
+
+            // Dynamic progression fixer: Level N is unlocked if Level N-1 is completed (stars >= 1)
+            let changed = false;
+            let sumStars = 0;
+            for (let i = 1; i <= 15; i++) {
+                const lvl = progress.levels[i];
+                if (lvl) {
+                    sumStars += (lvl.stars || 0);
+                    if (i > 1) {
+                        const prevLvl = progress.levels[i - 1];
+                        if (prevLvl && prevLvl.completed && prevLvl.stars >= 1) {
+                            if (!lvl.unlocked) {
+                                lvl.unlocked = true;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if (progress.totalStars !== sumStars) {
+                progress.totalStars = sumStars;
+                changed = true;
+            }
+            if (changed) {
+                localStorage.setItem("othello_level_progress", JSON.stringify(progress));
+            }
+
+            return progress;
+        }
+
+        // --- Render level bubbles on serpentine SVG path ---
+        function renderMap() {
+            const progress = loadProgress();
+            const nodesContainer = document.getElementById("nodes-container");
+            nodesContainer.textContent = "";
+
+            // Render details in progress dashboard
+            document.getElementById("header-stars-display").textContent = `${progress.totalStars} / 45`;
+            const percent = Math.min((progress.totalStars / 45) * 100, 100);
+            document.getElementById("progress-bar-fill").style.width = `${percent}%`;
+
+            LEVELS.forEach(lvl => {
+                const pos = LEVEL_POSITIONS[lvl.id];
+                if (!pos) return;
+
+                const lvlState = progress.levels[lvl.id];
+                let bubbleClass = "locked";
+                let bubbleContent = `<i class="fas fa-lock" style="font-size: 1.1rem;"></i>`;
+
+                if (lvlState.unlocked) {
+                    if (lvlState.completed) {
+                        bubbleClass = "completed";
+                    } else if (progress.lastPlayedLevel === lvl.id) {
+                        bubbleClass = "current";
+                    } else {
+                        // Check if it's the highest unlocked but unplayed
+                        let isHighestUnplayed = true;
+                        for (let j = 1; j < lvl.id; j++) {
+                            if (!progress.levels[j].completed) {
+                                isHighestUnplayed = false;
+                                break;
+                            }
+                        }
+                        bubbleClass = isHighestUnplayed ? "current" : "unlocked";
+                    }
+                    bubbleContent = lvl.id;
+                }
+
+                // Node DIV
+                const node = document.createElement("div");
+                node.className = `bubble-node ${bubbleClass}`;
+                node.style.left = `${pos.x}px`;
+                node.style.top = `${pos.y}px`;
+                node.innerHTML = DOMPurify.sanitize(bubbleContent);
+
+                // Click event
+                node.addEventListener("click", () => {
+                    if (!lvlState.unlocked) {
+                        node.classList.add("wiggle");
+                        SoundManager.skip();
+                        setTimeout(() => node.classList.remove("wiggle"), 400);
+                        showTooltip(`Complete Level ${lvl.id - 1} first! 🍬`);
+                    } else {
+                        SoundManager.placePiece();
+                        openLevelPreview(lvl, lvlState);
+                    }
+                });
+
+                // Stars container
+                const starBox = document.createElement("div");
+                starBox.className = "star-container";
+                const starsCount = lvlState.stars || 0;
+                for (let s = 1; s <= 3; s++) {
+                    const starIcon = document.createElement("i");
+                    starIcon.className = `fas fa-star ${s <= starsCount ? "gold" : ""}`;
+                    starBox.appendChild(starIcon);
+                }
+                node.appendChild(starBox);
+
+                // Level name label (below stars). Hide name on locked levels — show a dash.
+                const nameLabel = document.createElement("div");
+                nameLabel.className = "level-name-label";
+                nameLabel.textContent = lvlState.unlocked ? lvl.name : "—";
+                if (!lvlState.unlocked) nameLabel.style.color = "rgba(255,255,255,0.45)";
+                node.appendChild(nameLabel);
+
+                nodesContainer.appendChild(node);
+            });
+
+            // Auto-scroll viewport to the current/uncompleted level
+            setTimeout(() => {
+                let targetLvl = progress.lastPlayedLevel || 1;
+                // find highest unlocked
+                for (let i = 15; i >= 1; i--) {
+                    if (progress.levels[i].unlocked && !progress.levels[i].completed) {
+                        targetLvl = i;
+                        break;
+                    }
+                }
+                const pos = LEVEL_POSITIONS[targetLvl];
+                if (pos) {
+                    const viewport = document.getElementById("map-viewport");
+                    // Scroll so the level is centered in viewport
+                    const targetY = pos.y - viewport.clientHeight / 2;
+                    viewport.scrollTo({
+                        top: Math.max(0, targetY),
+                        behavior: "smooth"
+                    });
+                }
+            }, 300);
+        }
+
+        // --- Level Details Modal Handling ---
+        const modalOverlay = document.getElementById("level-modal-overlay");
+        const modalPlayBtn = document.getElementById("modal-play-btn");
+
+        function openLevelPreview(level, lvlState) {
+            document.getElementById("modal-level-num").textContent = `Level ${level.id}`;
+            document.getElementById("modal-level-name").textContent = level.name;
+            document.getElementById("modal-level-desc").textContent = level.desc;
+            
+            const bestScoreText = lvlState.bestScore !== null ? `Best Score: ${lvlState.bestScore} pieces` : "Best Score: --";
+            document.getElementById("modal-best-score").textContent = bestScoreText;
+
+            // Render stars
+            const starsContainer = document.getElementById("modal-stars-container");
+            starsContainer.textContent = "";
+            const activeStars = lvlState.stars || 0;
+            for (let s = 1; s <= 3; s++) {
+                const star = document.createElement("i");
+                star.className = `fas fa-star modal-star ${s <= activeStars ? "gold" : ""}`;
+                starsContainer.appendChild(star);
+            }
+
+            // Click play button
+            modalPlayBtn.onclick = () => {
+                SoundManager.placePiece();
+                // Navigate to othellobot.html with parameters
+                window.location.href = `othellobot.html?level=${level.id}&diff=${level.diff}&timer=${level.timer}&hint=${level.hint}&returnTo=levels`;
+            };
+
+            modalOverlay.classList.add("show");
+        }
+
+        document.getElementById("modal-close-btn").addEventListener("click", () => {
+            SoundManager.placePiece();
+            modalOverlay.classList.remove("show");
+        });
+
+        // Close on backdrop click
+        modalOverlay.addEventListener("click", (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove("show");
+            }
+        });
+
+        // Load map on load
+        document.addEventListener("DOMContentLoaded", () => {
+            renderMap();
+        });
+    </script>
+</body>
+</html>

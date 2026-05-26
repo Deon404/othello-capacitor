@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Online</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <script src="shared.js"></script>
+    <script src="sounds.js"></script>
+    <script src="firebase-env.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script defer src="multiplayer.js"></script>
+    <style>
+        body { padding-top: 50px; }
+        .score-board { grid-template-columns: 1fr 1fr; }
+        .timer-display {
+            grid-column: 1 / -1;
+            justify-self: center;
+            margin-top: 4px;
+        }
+        @media (max-width: 480px) {
+            .score-board { grid-template-columns: 1fr; }
+            .timer-display { grid-column: auto; }
+        }
+        .room-strip {
+            position: fixed;
+            left: 0; right: 0;
+            bottom: 0;
+            padding: 0.5rem 0.75rem;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.9rem;
+            color: #ddd;
+            z-index: 50;
+            border-top: 1px solid rgba(255, 215, 0, 0.18);
+        }
+        .room-strip .code {
+            font-family: 'Fredoka One', monospace;
+            color: var(--gold, gold);
+            letter-spacing: 4px;
+            font-size: 1.05rem;
+        }
+        .room-strip button {
+            min-width: auto;
+            padding: 0.35rem 0.8rem;
+            font-size: 0.85rem;
+        }
+        .disconnect-banner {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 0.55rem 1rem;
+            background: linear-gradient(135deg, #ff6b6b, #c0392b);
+            color: white;
+            font-weight: 700;
+            text-align: center;
+            font-family: 'Nunito', sans-serif;
+            z-index: 200;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .disconnect-banner.visible { display: block; }
+
+        .lobby-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 150;
+            backdrop-filter: blur(4px);
+        }
+        .lobby-overlay.hidden { display: none; }
+        .lobby-card {
+            background: var(--bg-card-2, rgba(17, 4, 74, 0.92));
+            border: 2px solid var(--gold, gold);
+            border-radius: 22px;
+            padding: 1.75rem 1.5rem;
+            max-width: 92%;
+            width: 380px;
+            text-align: center;
+        }
+        .lobby-card h2 { font-family: 'Fredoka One', sans-serif; color: var(--gold); margin: 0 0 0.5rem; }
+        .lobby-card .code-big {
+            font-family: 'Fredoka One', monospace;
+            font-size: 2.6rem;
+            letter-spacing: 0.45rem;
+            color: var(--gold);
+            margin: 0.75rem auto;
+            background: rgba(0,0,0,0.35);
+            padding: 0.8rem 0.4rem;
+            border-radius: 14px;
+        }
+        .dots-loader {
+            display: inline-flex; gap: 6px; margin: 0.75rem auto;
+        }
+        .dots-loader span {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--gold, gold); opacity: 0.4;
+            animation: dot-pulse 1.2s infinite ease-in-out;
+        }
+        .dots-loader span:nth-child(2) { animation-delay: 0.15s; }
+        .dots-loader span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.85); }
+            50%      { opacity: 1;   transform: scale(1.15); }
+        }
+
+        .game-over-host { text-align: center; }
+        .rematch-row {
+            display: flex; gap: 0.75rem; justify-content: center;
+            margin-top: 0.8rem; flex-wrap: wrap;
+        }
+        .rematch-row button { min-width: 130px; }
+        .rematch-status {
+            margin-top: 0.5rem; color: var(--text-muted, #ccc);
+            font-family: 'Nunito', sans-serif; font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+
+<div id="disconnect-banner" class="disconnect-banner" role="status"></div>
+
+<div class="score-board" aria-live="polite">
+    <div id="black-score"></div>
+    <div id="white-score"></div>
+    <div id="timer" class="timer-display">--</div>
+</div>
+
+<div class="game-menu-dropdown">
+    <button id="game-menu-button" class="dropdown-button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-bars"></i> Menu
+    </button>
+    <div id="game-menu-content" class="dropdown-content">
+        <a href="#" id="toggle-hints-dropdown">Hide Hints</a>
+        <a href="#" id="leave-room-link">Leave Room</a>
+        <a href="index.html">Main Menu</a>
+    </div>
+</div>
+
+<div id="board" class="board" role="grid" aria-label="Othello board"></div>
+
+<span id="valid-move" class="sr-only">valid move</span>
+
+<div id="skip-turn-overlay" class="skip-turn-overlay">
+    <div id="skip-turn-popup" class="skip-turn-popup">
+        <span id="skip-player-message">Player</span> Skipped Turn!
+    </div>
+</div>
+
+<div id="game-over" class="game-over-host" aria-live="polite"></div>
+<div id="skip-history-box">
+    <h3>History:</h3>
+    <ul id="skip-history-list"></ul>
+</div>
+
+<!-- Lobby overlay: shown until both players present -->
+<div id="lobby-overlay" class="lobby-overlay">
+    <div class="lobby-card">
+        <h2>Waiting for opponent</h2>
+        <p style="color: var(--text-muted, #ccc); margin: 0;">
+            Share this code with your friend.
+        </p>
+        <div id="lobby-code" class="code-big">-----</div>
+        <div class="dots-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div id="lobby-status" style="color: var(--text-muted, #ccc); font-family: 'Nunito', sans-serif;">
+            Connecting...
+        </div>
+        <div class="rematch-row" style="margin-top: 1rem;">
+            <button id="lobby-copy-btn"><i class="fas fa-copy"></i> Copy Code</button>
+            <button onclick="location.href='index.html'">Leave</button>
+        </div>
+    </div>
+</div>
+
+<!-- Room code strip (always visible at bottom once in-game) -->
+<div id="room-strip" class="room-strip" style="display:none;">
+    <span>Room:</span>
+    <span id="room-strip-code" class="code">-----</span>
+    <button id="room-strip-copy"><i class="fas fa-copy"></i></button>
+</div>
+
+<footer style="margin-bottom: 3rem;">
+    <a style="color: rgb(175, 175, 175); text-decoration: none;" href="https://www.instagram.com/sidonstudio/">
+        Developed by @SidonStudio
+    </a>
+</footer>
+
+<script>
+    /* === Online Othello — built on top of the local PvP game logic.
+       Game-state generation (validity / flipping / scoring) reuses helpers
+       from shared.js. Network layer is window.Room (multiplayer.js). === */
+
+    const BOARD_SIZE = 8;
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+
+    let player1 = { name: 'Black Player', color: BLACK };
+    let player2 = { name: 'White Player', color: WHITE };
+
+    let currentPlayer = BLACK;
+    let scores = { black: 2, white: 2 };
+    let showHints = true;
+    let gameOver = false;
+    let board;
+    let animationInProgress = false;
+    let cells = [];
+    let skipHistory = [];
+
+    let MOVE_TIME_SECONDS = 30;
+    let TIMER_ENABLED = true;
+    let timerDisplayElement;
+
+    // Networking / sync state.
+    let roomCode = null;
+    let myColor = null;
+    let opponentColor = null;
+    let role = null;            // 'host' | 'guest'
+    let lastAppliedMoveNumber = -1;
+    let lastDeadlineTs = null;
+    let timerRafId = null;
+    let timeoutPublished = false;   // dedupe skip publishes per turn
+
+    const directions = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-1, -1], [-1, 1], [1, -1], [1, 1]
+    ];
+    const isCorner = (r, c) => (r === 0 || r === 7) && (c === 0 || c === 7);
+
+    let toggleHintsDropdownLink;
+    let leaveRoomLink;
+    let skipHistoryList;
+    let lobbyOverlay;
+    let lobbyCodeEl;
+    let lobbyStatusEl;
+    let roomStripEl;
+    let roomStripCodeEl;
+    let disconnectBanner;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const gameMenuButton = document.getElementById('game-menu-button');
+        const gameMenuContent = document.getElementById('game-menu-content');
+        const gameMenuDropdown = document.querySelector('.game-menu-dropdown');
+
+        timerDisplayElement = document.getElementById('timer');
+        toggleHintsDropdownLink = document.getElementById('toggle-hints-dropdown');
+        leaveRoomLink = document.getElementById('leave-room-link');
+        skipHistoryList = document.getElementById('skip-history-list');
+        lobbyOverlay = document.getElementById('lobby-overlay');
+        lobbyCodeEl = document.getElementById('lobby-code');
+        lobbyStatusEl = document.getElementById('lobby-status');
+        roomStripEl = document.getElementById('room-strip');
+        roomStripCodeEl = document.getElementById('room-strip-code');
+        disconnectBanner = document.getElementById('disconnect-banner');
+
+        if (gameMenuButton && gameMenuContent && gameMenuDropdown) {
+            gameMenuButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const isActive = gameMenuDropdown.classList.toggle('active');
+                gameMenuButton.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+            });
+            window.addEventListener('click', (event) => {
+                if (gameMenuDropdown.classList.contains('active')) {
+                    if (!gameMenuDropdown.contains(event.target)) {
+                        gameMenuDropdown.classList.remove('active');
+                        gameMenuButton.setAttribute('aria-expanded', 'false');
+                    }
+                }
+            });
+            gameMenuContent.addEventListener('click', () => {
+                gameMenuDropdown.classList.remove('active');
+                gameMenuButton.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        if (toggleHintsDropdownLink) {
+            toggleHintsDropdownLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showHints = !showHints;
+                renderBoard([]);
+                toggleHintsDropdownLink.textContent = showHints ? 'Hide Hints' : 'Show Hints';
+            });
+        }
+        if (leaveRoomLink) {
+            leaveRoomLink.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try { await window.Room.leave(); } catch (_) {}
+                location.href = 'index.html';
+            });
+        }
+
+        document.getElementById('lobby-copy-btn').addEventListener('click', () => copyCode(roomCode));
+        document.getElementById('room-strip-copy').addEventListener('click', () => copyCode(roomCode));
+
+        // Initial empty board so render calls are safe pre-state.
+        board = initializeBoard();
+        createBoardElements();
+        updateScores(board);
+
+        await bootstrap();
+    });
+
+    function initializeBoard() {
+        const b = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
+        b[3][3] = WHITE; b[3][4] = BLACK; b[4][3] = BLACK; b[4][4] = WHITE;
+        return b;
+    }
+
+    function copyCode(code) {
+        if (!code) return;
+        const text = code;
+        const done = () => {
+            const orig = roomStripEl.querySelector('#room-strip-copy');
+            if (orig) {
+                orig.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => { orig.innerHTML = '<i class="fas fa-copy"></i>'; }, 1200);
+            }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(() => {});
+        } else {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+                ta.remove(); done();
+            } catch (_) {}
+        }
+    }
+
+    async function waitForLibs() {
+        const start = Date.now();
+        while (!window.FB || !window.Room) {
+            if (Date.now() - start > 8000) throw new Error('Libraries failed to load.');
+            await new Promise(r => setTimeout(r, 50));
+        }
+        await window.FB.ready;
+    }
+
+    async function bootstrap() {
+        try {
+            await waitForLibs();
+        } catch (e) {
+            lobbyStatusEl.textContent = `Connection failed: ${e.message || e}`;
+            return;
+        }
+
+        const params = new URLSearchParams(location.search);
+        const codeParam = (params.get('code') || '').trim().toUpperCase();
+        if (!codeParam) {
+            lobbyStatusEl.textContent = 'No room code in URL. Returning to lobby...';
+            // location.replace — this bounce isn't tied to a user gesture, so
+            // location.href would create a "skippable" history entry Chrome
+            // warns about. Replace also keeps the back button useful (it
+            // returns the user to whatever page they came from, not this
+            // transient redirect page).
+            setTimeout(() => location.replace('online.html'), 1200);
+            return;
+        }
+
+        roomCode = codeParam;
+        lobbyCodeEl.textContent = roomCode;
+
+        try {
+            const info = await window.Room.attach({ code: roomCode });
+            role = info.role;
+            myColor = info.myColor;
+            opponentColor = info.opponentColor;
+        } catch (e) {
+            lobbyStatusEl.textContent = e.message || 'Failed to attach to room.';
+            return;
+        }
+
+        // Subscribe to room data streams.
+        window.Room.on('meta', onMeta);
+        window.Room.on('players', onPlayers);
+        window.Room.on('game', onGame);
+        window.Room.on('rematchReady', onRematchReady);
+        window.Room.on('rematch', onRematchProgress);
+        window.Room.on('error', err => {
+            console.error('[Room error]', err);
+        });
+
+        roomStripCodeEl.textContent = roomCode;
+
+        // If we attached after the page already had snapshots cached, replay
+        // them immediately so the UI doesn't sit on "Connecting...".
+        const snap = window.Room.snapshot();
+        if (snap.meta) onMeta(snap.meta);
+        if (snap.players) onPlayers(snap.players);
+        if (snap.game) onGame(snap.game);
+
+        startTimerLoop();
+    }
+
+    // Once we've applied the host's room style we don't want to keep
+    // re-applying it on every meta update — it would fight any future
+    // local theme switch (e.g. a host opening Settings mid-game). Tracked
+    // here so onMeta() only acts the first time it sees hostStyle.
+    let hostStyleApplied = false;
+
+    function onMeta(meta) {
+        if (!meta) return;
+        MOVE_TIME_SECONDS = meta.timeLimit || 0;
+        TIMER_ENABLED = MOVE_TIME_SECONDS > 0;
+        if (!TIMER_ENABLED && timerDisplayElement) {
+            timerDisplayElement.style.display = 'none';
+        } else if (timerDisplayElement) {
+            timerDisplayElement.style.display = '';
+        }
+
+        // Mirror the host's chosen theme + piece design onto the GUEST's
+        // screen so both players see the exact same board look. We never
+        // persist it to localStorage — the guest's saved preferences come
+        // back automatically the next time they're outside a room.
+        if (!hostStyleApplied && role === 'guest' && meta.hostStyle &&
+            typeof window.applyEphemeralRoomStyle === 'function') {
+            try {
+                window.applyEphemeralRoomStyle(meta.hostStyle);
+                hostStyleApplied = true;
+            } catch (e) {
+                console.warn('[Online] Could not apply host style:', e);
+            }
+        }
+
+        if (meta.status === 'finished') {
+            // Will be reflected by game state too; nothing extra to do here.
+        }
+    }
+
+    function onPlayers(players) {
+        if (!players) return;
+        const host = players.host;
+        const guest = players.guest;
+
+        // Determine display order: player1 = BLACK side, player2 = WHITE side.
+        const byColor = {};
+        if (host) byColor[host.color] = host;
+        if (guest) byColor[guest.color] = guest;
+        const blackP = byColor[BLACK];
+        const whiteP = byColor[WHITE];
+
+        if (blackP) player1 = { name: String(blackP.name || 'Black').slice(0, 40), color: BLACK, role: hostOrGuest(players, blackP) };
+        if (whiteP) player2 = { name: String(whiteP.name || 'White').slice(0, 40), color: WHITE, role: hostOrGuest(players, whiteP) };
+
+        updateScores(board);
+        updatePlayerDisplay();
+
+        // Lobby visibility: keep overlay up until both seats filled.
+        const bothPresent = !!(host && host.uid && guest && guest.uid);
+        if (bothPresent) {
+            lobbyOverlay.classList.add('hidden');
+            roomStripEl.style.display = '';
+        } else {
+            lobbyOverlay.classList.remove('hidden');
+            lobbyStatusEl.textContent = 'Share the code to invite your friend.';
+        }
+
+        // Disconnect banner: surface when our opponent has flipped offline.
+        const opponentRole = role === 'host' ? 'guest' : 'host';
+        const op = players[opponentRole];
+        if (op && op.uid && op.connected === false && !gameOver) {
+            disconnectBanner.textContent = `${op.name || 'Opponent'} disconnected. Waiting to reconnect...`;
+            disconnectBanner.classList.add('visible');
+        } else {
+            disconnectBanner.classList.remove('visible');
+        }
+    }
+
+    function hostOrGuest(players, p) {
+        if (players.host && players.host.uid === p.uid) return 'host';
+        if (players.guest && players.guest.uid === p.uid) return 'guest';
+        return null;
+    }
+
+    function onGame(game) {
+        if (!game) return;
+
+        // Initial snapshot or full re-sync.
+        const incomingMoveNumber = game.moveNumber || 0;
+        const isFirstApply = lastAppliedMoveNumber < 0;
+        const isStepForward = incomingMoveNumber === lastAppliedMoveNumber + 1;
+        const isSameAsLocal = incomingMoveNumber === lastAppliedMoveNumber;
+        const isLeap = incomingMoveNumber > lastAppliedMoveNumber + 1;
+
+        if (isSameAsLocal && !isFirstApply) {
+            // Already applied locally (this is the echo of our own publish).
+            // Still pick up any server-corrected deadline.
+            lastDeadlineTs = game.deadlineTs || null;
+            scores = game.scores || scores;
+            currentPlayer = game.currentPlayer || currentPlayer;
+            gameOver = !!game.gameOver;
+            updatePlayerDisplay();
+            updateScores(board);
+            if (gameOver) showGameOver(game);
+            timeoutPublished = false;
+            return;
+        }
+
+        // Step-forward case: diff old board -> new board, animate flips.
+        if (isStepForward && !isFirstApply && Array.isArray(game.board)) {
+            const oldBoard = copyBoard(board);
+            const newBoard = game.board.map(r => r.slice());
+            const flipped = diffFlipped(oldBoard, newBoard);
+            const placed = game.lastMove ? { x: game.lastMove.r, y: game.lastMove.c } : null;
+
+            board = newBoard;
+            scores = game.scores || scores;
+            currentPlayer = game.currentPlayer || currentPlayer;
+            gameOver = !!game.gameOver;
+            lastDeadlineTs = game.deadlineTs || null;
+            lastAppliedMoveNumber = incomingMoveNumber;
+
+            animationInProgress = true;
+            updateScores(board);
+            updatePlayerDisplay();
+            renderBoardWithLastPlaced(flipped, placed);
+
+            if (placed) {
+                SoundManager.placePiece();
+                // One flip-tone per Chebyshev ring so the audio cascade
+                // matches the staggered visual ripple.
+                if (flipped.length > 0) {
+                    const ringDelays = flipRingStartDelays(flipped, placed);
+                    ringDelays.forEach(d => setTimeout(() => SoundManager.flipPiece(), d));
+                }
+            } else if (game.lastEvent === 'skip' || game.lastEvent === 'timeout') {
+                // Skip animation for the player who just had to skip.
+                const skipper = (game.currentPlayer === BLACK ? player2 : player1);
+                showSkipAnimation(skipper.name || (skipper.color === BLACK ? 'White' : 'Black'));
+                addHistoryEntry(
+                    `${skipper.name || ''} ${game.lastEvent === 'timeout' ? 'ran out of time' : 'had no valid moves'}!`,
+                    game.lastEvent === 'timeout' ? 'skip-message timed-out' : 'skip-message',
+                    skipper.color
+                );
+            }
+
+            // Add a positional log entry for the placed move.
+            if (placed) {
+                const moverColor = game.lastMove.by;
+                const moverName = moverColor === player1.color ? player1.name : player2.name;
+                addHistoryEntry(
+                    `${moverName} played ${String.fromCharCode(65 + placed.y)}${placed.x + 1}`,
+                    '',
+                    moverColor
+                );
+            }
+
+            // Wait for the full staggered ripple to settle before clearing
+            // the animation lock and re-rendering with no flip-targets. The
+            // 450ms fallback covers the case where nothing was captured.
+            const settleWait = Math.max(450, flipTotalDurationMs(flipped, placed));
+            setTimeout(() => {
+                animationInProgress = false;
+                renderBoard([]);
+                if (gameOver) showGameOver(game);
+                timeoutPublished = false;
+            }, settleWait);
+            return;
+        }
+
+        // First apply OR leap (resync after reconnect): snap without animation.
+        board = Array.isArray(game.board) ? game.board.map(r => r.slice()) : initializeBoard();
+        scores = game.scores || { black: 2, white: 2 };
+        currentPlayer = game.currentPlayer || BLACK;
+        gameOver = !!game.gameOver;
+        lastDeadlineTs = game.deadlineTs || null;
+        lastAppliedMoveNumber = incomingMoveNumber;
+        timeoutPublished = false;
+
+        updateScores(board);
+        updatePlayerDisplay();
+        renderBoard([]);
+        if (isFirstApply) {
+            addHistoryEntry('Game Start! Good Luck!', 'system-message', null);
+        }
+        if (gameOver) showGameOver(game);
+    }
+
+    function diffFlipped(oldBoard, newBoard) {
+        const flipped = [];
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const o = oldBoard[i][j];
+                const n = newBoard[i][j];
+                if (o !== EMPTY && n !== EMPTY && o !== n) {
+                    flipped.push({ x: i, y: j, original: o, new: n });
+                }
+            }
+        }
+        return flipped;
+    }
+
+    function renderBoardWithLastPlaced(piecesToAnimate, placed) {
+        // Stash the last-placed marker via a module-level variable consumed by renderBoard().
+        renderBoard(piecesToAnimate, placed);
+    }
+
+    function getValidMoves(player, currentBoard = board) {
+        const valid = [];
+        if (!currentBoard) return valid;
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                if (currentBoard[i][j] === EMPTY && getFlipCount(i, j, player, currentBoard) > 0) {
+                    valid.push([i, j]);
+                }
+            }
+        }
+        return valid;
+    }
+
+    function getFlipCount(row, col, player, currentBoard) {
+        if (!currentBoard || currentBoard[row][col] !== EMPTY) return 0;
+        let total = 0;
+        const opponent = player === BLACK ? WHITE : BLACK;
+        for (const [dx, dy] of directions) {
+            let x = row + dx, y = col + dy, run = 0;
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (currentBoard[x][y] === EMPTY) break;
+                if (currentBoard[x][y] === player) { if (run > 0) total += run; break; }
+                if (currentBoard[x][y] === opponent) run++; else break;
+                x += dx; y += dy;
+            }
+        }
+        return total;
+    }
+
+    function applyMoveLocally(row, col, player, srcBoard) {
+        const out = srcBoard.map(r => r.slice());
+        if (out[row][col] !== EMPTY) return { newBoard: out, flipped: [] };
+        out[row][col] = player;
+        const opponent = player === BLACK ? WHITE : BLACK;
+        const flipped = [];
+        for (const [dx, dy] of directions) {
+            let x = row + dx, y = col + dy;
+            const run = [];
+            while (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE) {
+                if (out[x][y] === EMPTY) break;
+                if (out[x][y] === player) {
+                    if (run.length > 0) {
+                        run.forEach(([fx, fy]) => {
+                            out[fx][fy] = player;
+                            flipped.push({ x: fx, y: fy, original: opponent, new: player });
+                        });
+                    }
+                    break;
+                }
+                if (out[x][y] === opponent) run.push([x, y]); else break;
+                x += dx; y += dy;
+            }
+        }
+        return { newBoard: out, flipped };
+    }
+
+    function computeScores(b) {
+        let blk = 0, wht = 0;
+        for (let i = 0; i < BOARD_SIZE; i++) for (let j = 0; j < BOARD_SIZE; j++) {
+            if (b[i][j] === BLACK) blk++;
+            else if (b[i][j] === WHITE) wht++;
+        }
+        return { black: blk, white: wht };
+    }
+
+    function isGameOverBoard(b) {
+        return getValidMoves(BLACK, b).length === 0 && getValidMoves(WHITE, b).length === 0;
+    }
+
+    function computeWinner(s) {
+        if (s.black > s.white) return 'black';
+        if (s.white > s.black) return 'white';
+        return 'tie';
+    }
+
+    async function handleMove(row, col) {
+        if (gameOver || animationInProgress) return;
+        if (currentPlayer !== myColor) return;
+        if (!isValidMove(row, col, currentPlayer, board, directions)) return;
+
+        animationInProgress = true;
+        const { newBoard, flipped } = applyMoveLocally(row, col, currentPlayer, board);
+        const newScores = computeScores(newBoard);
+        const nextPlayer = switchPlayer(currentPlayer);
+
+        // After the placement we need to determine the actual next-to-move:
+        // if the opponent has no moves AND we still have one, we go again.
+        // If neither side has moves -> game over.
+        let resolvedNext = nextPlayer;
+        let nextHasMove = getValidMoves(nextPlayer, newBoard).length > 0;
+        let selfStillMoves = getValidMoves(currentPlayer, newBoard).length > 0;
+        let isOver = false;
+        if (!nextHasMove && !selfStillMoves) isOver = true;
+        else if (!nextHasMove && selfStillMoves) resolvedNext = currentPlayer;
+
+        const winner = isOver ? computeWinner(newScores) : null;
+        const newMoveNumber = lastAppliedMoveNumber + 1;
+
+        // Optimistic local apply so the placer sees instant feedback.
+        board = newBoard;
+        scores = newScores;
+        currentPlayer = resolvedNext;
+        gameOver = isOver;
+        lastAppliedMoveNumber = newMoveNumber;
+        timeoutPublished = false;
+
+        SoundManager.placePiece();
+        renderBoardWithLastPlaced(flipped, { x: row, y: col });
+        if (flipped.length > 0) setTimeout(() => SoundManager.flipPiece(), 80);
+        await new Promise(r => setTimeout(r, 350));
+
+        updateScores(board);
+        updatePlayerDisplay();
+        addHistoryEntry(
+            `${(myColor === player1.color ? player1.name : player2.name)} played ${String.fromCharCode(65 + col)}${row + 1}`,
+            '', myColor
+        );
+
+        try {
+            await window.Room.publishMove({
+                row, col,
+                newGameState: {
+                    board: newBoard,
+                    currentPlayer: resolvedNext,
+                    moveNumber: newMoveNumber,
+                    scores: newScores,
+                    gameOver: isOver,
+                    winner,
+                },
+            });
+        } catch (e) {
+            console.error('[publishMove] failed', e);
+        }
+
+        animationInProgress = false;
+        if (isOver) {
+            // Render-driven game-over UI is fired by onGame echo, but show
+            // immediately too in case the echo is delayed.
+            showGameOver({ scores: newScores, winner });
+        }
+        renderBoard([]);
+    }
+
+    async function publishLocalSkip(reason) {
+        if (timeoutPublished) return;
+        timeoutPublished = true;
+        // Skip just toggles the turn; if opponent also has no moves the
+        // game ends. Mirrors handleMove's terminal-state computation.
+        const nextPlayer = switchPlayer(currentPlayer);
+        const nextHasMove = getValidMoves(nextPlayer, board).length > 0;
+        const selfHasMove = getValidMoves(currentPlayer, board).length > 0;
+        let resolvedNext = nextPlayer;
+        let isOver = false;
+        if (!nextHasMove && !selfHasMove) isOver = true;
+        else if (!nextHasMove && selfHasMove) resolvedNext = currentPlayer; // shouldn't happen on a skip but defensive
+        const newScores = computeScores(board);
+        const newMoveNumber = lastAppliedMoveNumber + 1;
+        const winner = isOver ? computeWinner(newScores) : null;
+
+        const skipperName = (currentPlayer === player1.color ? player1.name : player2.name);
+        const msg = reason === 'timeout' ? `${skipperName} ran out of time!` : `${skipperName} had no valid moves!`;
+        addHistoryEntry(msg, reason === 'timeout' ? 'skip-message timed-out' : 'skip-message', currentPlayer);
+        showSkipAnimation(skipperName);
+
+        currentPlayer = resolvedNext;
+        gameOver = isOver;
+        lastAppliedMoveNumber = newMoveNumber;
+        updatePlayerDisplay();
+
+        try {
+            await window.Room.publishSkip({
+                newGameState: {
+                    board,
+                    currentPlayer: resolvedNext,
+                    moveNumber: newMoveNumber,
+                    scores: newScores,
+                    gameOver: isOver,
+                    winner,
+                },
+                reason,
+            });
+        } catch (e) {
+            console.error('[publishSkip] failed', e);
+        }
+    }
+
+    // --- Timer loop (synced via deadlineTs - serverNow) ---
+    function startTimerLoop() {
+        if (timerRafId) cancelAnimationFrame(timerRafId);
+        const tick = () => {
+            updateTimerDisplay();
+            // Local-side auto-skip on timeout (only the current player publishes).
+            if (TIMER_ENABLED && !gameOver && !animationInProgress
+                && currentPlayer === myColor && lastDeadlineTs) {
+                const remaining = lastDeadlineTs - window.FB.serverNow();
+                if (remaining <= 0 && !timeoutPublished) {
+                    // Check whether we actually have valid moves; if not, normal skip;
+                    // either way we publish.
+                    const reason = getValidMoves(myColor, board).length === 0 ? 'skip' : 'timeout';
+                    publishLocalSkip(reason);
+                }
+            }
+            timerRafId = requestAnimationFrame(tick);
+        };
+        timerRafId = requestAnimationFrame(tick);
+    }
+
+    function updateTimerDisplay() {
+        if (!timerDisplayElement) return;
+        if (!TIMER_ENABLED) {
+            timerDisplayElement.style.display = 'none';
+            return;
+        }
+        timerDisplayElement.style.display = '';
+        if (!lastDeadlineTs || gameOver) {
+            timerDisplayElement.textContent = '--';
+            timerDisplayElement.classList.remove('low-time');
+            return;
+        }
+        const remainingMs = Math.max(0, lastDeadlineTs - window.FB.serverNow());
+        const secondsLeft = Math.ceil(remainingMs / 1000);
+        const minutes = Math.floor(secondsLeft / 60);
+        const secs = secondsLeft % 60;
+        timerDisplayElement.textContent = `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+        if (secondsLeft <= 5 && currentPlayer === myColor) {
+            timerDisplayElement.classList.add('low-time');
+        } else {
+            timerDisplayElement.classList.remove('low-time');
+        }
+    }
+
+    function updateScores(currentBoard) {
+        let blackCount = 0, whiteCount = 0;
+        if (!currentBoard) return;
+        currentBoard.forEach(row => row.forEach(cell => {
+            if (cell === BLACK) blackCount++;
+            else if (cell === WHITE) whiteCount++;
+        }));
+        scores = { black: blackCount, white: whiteCount };
+        const blackName = player1.color === BLACK ? player1.name : player2.name;
+        const whiteName = player1.color === WHITE ? player1.name : player2.name;
+        document.getElementById('black-score').textContent = `${blackName} : ${scores.black}`;
+        document.getElementById('white-score').textContent = `${whiteName} : ${scores.white}`;
+    }
+
+    function updatePlayerDisplay() {
+        const blackScoreDiv = document.getElementById('black-score');
+        const whiteScoreDiv = document.getElementById('white-score');
+        blackScoreDiv.classList.remove('current-player', 'black-turn-active');
+        whiteScoreDiv.classList.remove('current-player', 'white-turn-active');
+        if (gameOver) return;
+        const scoreDiv = (currentPlayer === BLACK) ? blackScoreDiv : whiteScoreDiv;
+        scoreDiv.classList.add('current-player', currentPlayer === BLACK ? 'black-turn-active' : 'white-turn-active');
+    }
+
+    function renderBoard(piecesToAnimate = [], placed = null) {
+        if (!board || cells.length === 0) return;
+        const myTurn = (currentPlayer === myColor) && !gameOver && !animationInProgress;
+        const validMoves = (myTurn && showHints) ? getValidMoves(currentPlayer) : [];
+        const colorName = currentPlayer === BLACK ? 'black' : 'white';
+
+        for (let rowIndex = 0; rowIndex < BOARD_SIZE; rowIndex++) {
+            for (let colIndex = 0; colIndex < BOARD_SIZE; colIndex++) {
+                const cell = board[rowIndex][colIndex];
+                const cellElement = cells[rowIndex][colIndex];
+                if (!cellElement) continue;
+
+                const label = `${String.fromCharCode(65 + colIndex)}${rowIndex + 1}, ` +
+                    `${cell === BLACK ? 'black piece' : cell === WHITE ? 'white piece' : 'empty'}`;
+                cellElement.setAttribute('aria-label', label);
+
+                const isHint = validMoves.some(([x, y]) => x === rowIndex && y === colIndex);
+                cellElement.classList.toggle('hint', isHint);
+                if (isHint) {
+                    cellElement.dataset.player = colorName;
+                    cellElement.style.cursor = 'pointer';
+                    cellElement.setAttribute('aria-describedby', 'valid-move');
+                } else {
+                    delete cellElement.dataset.player;
+                    cellElement.style.cursor = myTurn ? 'pointer' : 'default';
+                    cellElement.removeAttribute('aria-describedby');
+                }
+
+                let piece = cellElement.querySelector('.piece');
+                const tColor = cell;
+                const tName = tColor === BLACK ? 'black' : (tColor === WHITE ? 'white' : null);
+
+                if (tColor !== EMPTY) {
+                    if (!piece) {
+                        piece = document.createElement('div');
+                        piece.className = 'piece';
+                        const bf = document.createElement('div'); bf.className = 'piece-face black';
+                        const wf = document.createElement('div'); wf.className = 'piece-face white';
+                        piece.appendChild(bf); piece.appendChild(wf);
+                        cellElement.appendChild(piece);
+                        piece.classList.add(`color-${tName}`);
+
+                        if (animationInProgress && placed && placed.x === rowIndex && placed.y === colIndex) {
+                            const ripple = document.createElement('span');
+                            ripple.className = 'place-ripple';
+                            cellElement.insertBefore(ripple, piece);
+                            ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+                            piece.classList.add('place-pop');
+                            piece.addEventListener('animationend', () => piece.classList.remove('place-pop'), { once: true });
+                            if (typeof spawnSparkles === 'function') spawnSparkles(cellElement, 6);
+                        }
+                    } else {
+                        const currentName = piece.classList.contains('color-black') ? 'black'
+                            : (piece.classList.contains('color-white') ? 'white' : null);
+                        if (currentName !== tName) {
+                            const shouldAnimate = (piecesToAnimate || []).some(p => p.x === rowIndex && p.y === colIndex && p.new === tColor && p.original !== EMPTY);
+                            if (shouldAnimate && animationInProgress) {
+                                // Ripple-out flip from the placed cell — see
+                                // shared.js FLIP_TIMING for rationale. The
+                                // color class swaps at squash midpoint so
+                                // the change is hidden under scaleX(0).
+                                const oldName = currentName;
+                                const newName = tName;
+                                const startDelay = flipStartDelayMs({ x: rowIndex, y: colIndex }, placed);
+                                const swapAt     = startDelay + FLIP_TIMING.squashDurationMs / 2;
+                                const endAt      = startDelay + FLIP_TIMING.squashDurationMs;
+                                setTimeout(() => piece.classList.add('flipping'), startDelay);
+                                setTimeout(() => {
+                                    if (oldName) piece.classList.remove(`color-${oldName}`);
+                                    piece.classList.add(`color-${newName}`);
+                                }, swapAt);
+                                setTimeout(() => piece.classList.remove('flipping'), endAt);
+                            } else {
+                                if (currentName) piece.classList.remove(`color-${currentName}`);
+                                piece.classList.add(`color-${tName}`);
+                            }
+                        }
+                    }
+                    piece.classList.toggle('last-move-piece', !!(placed && placed.x === rowIndex && placed.y === colIndex));
+                } else {
+                    if (piece) piece.remove();
+                    cellElement.classList.remove('last-move-cell-hint');
+                }
+
+                if (isCorner(rowIndex, colIndex)) cellElement.classList.add('corner-dot');
+                else cellElement.classList.remove('corner-dot');
+            }
+        }
+    }
+
+    function addHistoryEntry(message, className = '', playerColor = null) {
+        skipHistory.push({ message, class: className, playerColor });
+        updateSkipHistoryDisplay();
+    }
+
+    function updateSkipHistoryDisplay() {
+        if (!skipHistoryList) return;
+        skipHistoryList.textContent = '';
+        skipHistory.forEach(item => {
+            const li = document.createElement('li');
+            li.textContent = item.message;
+            const classes = (item.class || '').split(' ').filter(c => c);
+            if (item.playerColor === BLACK) classes.push('player-black');
+            else if (item.playerColor === WHITE) classes.push('player-white');
+            else classes.push('system-message');
+            li.classList.add(...classes);
+            skipHistoryList.appendChild(li);
+        });
+        skipHistoryList.scrollTop = skipHistoryList.scrollHeight;
+    }
+
+    function showSkipAnimation(playerName) {
+        const overlay = document.getElementById('skip-turn-overlay');
+        const playerMessageSpan = document.getElementById('skip-player-message');
+        playerMessageSpan.textContent = playerName;
+        overlay.classList.add('visible');
+        SoundManager.skip();
+        setTimeout(() => overlay.classList.remove('visible'), 1500);
+    }
+
+    let gameOverShown = false;
+    function showGameOver(game) {
+        if (gameOverShown) return;
+        gameOverShown = true;
+        const blackName = player1.color === BLACK ? player1.name : player2.name;
+        const whiteName = player1.color === WHITE ? player1.name : player2.name;
+        // Derive the winning side once so we both render the right banner
+        // and record the result from MY POV into the global stats bucket.
+        let winnerSide;
+        if (game.winner === 'black' || (game.scores && game.scores.black > game.scores.white)) winnerSide = 'black';
+        else if (game.winner === 'white' || (game.scores && game.scores.white > game.scores.black)) winnerSide = 'white';
+        else winnerSide = 'tie';
+
+        let msg;
+        if (winnerSide === 'black') msg = `${blackName} Wins!`;
+        else if (winnerSide === 'white') msg = `${whiteName} Wins!`;
+        else msg = "It's a Tie!";
+
+        // Record online result from MY perspective (myColor is BLACK/WHITE).
+        if (window.OthelloStats && typeof window.OthelloStats.recordOnline === 'function') {
+            let result;
+            if (winnerSide === 'tie') result = 'd';
+            else if ((winnerSide === 'black' && myColor === BLACK) ||
+                     (winnerSide === 'white' && myColor === WHITE)) result = 'w';
+            else result = 'l';
+            window.OthelloStats.recordOnline(result);
+        }
+
+        const host = document.getElementById('game-over');
+        host.textContent = '';
+        const goDiv = document.createElement('div');
+        goDiv.className = 'game-over';
+        goDiv.textContent = `Game Over! ${msg}`;
+        host.appendChild(goDiv);
+
+        // Rematch row.
+        const row = document.createElement('div');
+        row.className = 'rematch-row';
+        const rematchBtn = document.createElement('button');
+        rematchBtn.id = 'rematch-btn';
+        rematchBtn.textContent = 'Rematch';
+        const mainBtn = document.createElement('button');
+        mainBtn.textContent = 'Main Menu';
+        mainBtn.addEventListener('click', async () => {
+            try { await window.Room.leave(); } catch (_) {}
+            location.href = 'index.html';
+        });
+        row.appendChild(rematchBtn);
+        row.appendChild(mainBtn);
+        host.appendChild(row);
+
+        const status = document.createElement('div');
+        status.id = 'rematch-status';
+        status.className = 'rematch-status';
+        host.appendChild(status);
+
+        rematchBtn.addEventListener('click', async () => {
+            rematchBtn.disabled = true;
+            status.textContent = 'Waiting for opponent...';
+            try { await window.Room.requestRematch(); } catch (e) {
+                status.textContent = e.message || 'Failed to request rematch.';
+                rematchBtn.disabled = false;
+            }
+        });
+
+        SoundManager.win();
+        addHistoryEntry('Game Over!', 'system-message', null);
+    }
+
+    function onRematchProgress(rm) {
+        if (!rm) return;
+        const status = document.getElementById('rematch-status');
+        if (!status) return;
+        if (rm.hostWants && rm.guestWants) {
+            status.textContent = 'Both ready! Starting new game...';
+        } else if (rm.hostWants || rm.guestWants) {
+            const mineWants = role === 'host' ? rm.hostWants : rm.guestWants;
+            const theirsWants = role === 'host' ? rm.guestWants : rm.hostWants;
+            if (mineWants && !theirsWants) status.textContent = 'Waiting for opponent to accept rematch...';
+            else if (!mineWants && theirsWants) status.textContent = 'Opponent wants a rematch. Tap Rematch to accept.';
+        }
+    }
+
+    function onRematchReady(newCode) {
+        if (!newCode || newCode === roomCode) return;
+        // Detach the current room before navigating to avoid late onDisconnect writes.
+        // location.replace (not href): the navigation fires from inside an
+        // async RTDB callback so it's not tied to a user gesture — using href
+        // would create a skippable history entry. Replace is also better UX
+        // (Back to the just-finished game room would re-attach to a dead
+        // session).
+        window.Room.leave().catch(() => {}).finally(() => {
+            location.replace(`othelloonline.html?code=${newCode}`);
+        });
+    }
+
+    function createBoardElements() {
+        const boardElement = document.getElementById('board');
+        if (!boardElement) return;
+        boardElement.textContent = '';
+        cells = [];
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            const rowCells = [];
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                cellElement.setAttribute('role', 'gridcell');
+                cellElement.setAttribute('tabindex', '-1');
+                if (isCorner(i, j)) cellElement.classList.add('corner-dot');
+                cellElement.addEventListener('click', () => handleMove(i, j));
+                cellElement.addEventListener('touchend', (e) => { e.preventDefault(); handleMove(i, j); }, { passive: false });
+                boardElement.appendChild(cellElement);
+                rowCells.push(cellElement);
+            }
+            cells.push(rowCells);
+        }
+        boardElement.style.touchAction = 'manipulation';
+    }
+</script>
+</body>
+</html>

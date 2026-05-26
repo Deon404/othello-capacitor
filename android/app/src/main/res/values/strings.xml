@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Voidllo</string>
+    <string name="title_activity_main">Voidllo</string>
+    <string name="package_name">com.sidonstudio.voidllo</string>
+    <string name="custom_url_scheme">com.sidonstudio.voidllo</string>
+</resources>

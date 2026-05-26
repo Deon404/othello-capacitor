@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Online Multiplayer</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <script src="shared.js"></script>
+    <script src="firebase-env.js"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script defer src="multiplayer.js"></script>
+    <style>
+        body {
+            justify-content: center;
+            padding: 20px;
+            padding-bottom: 5rem;
+            min-height: 100vh;
+        }
+        h1 { margin-bottom: 1rem; text-align: center; }
+        h2 { font-family: 'Fredoka One', 'Nunito', sans-serif; color: var(--gold); margin: 0 0 0.75rem; }
+
+        /* Top-left back arrow — matches the levels.html circular nav pattern
+           but fixed-position and gold-outlined since this page has no header. */
+        .lobby-back-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(17, 4, 74, 0.55);
+            border: 2px solid var(--gold, gold);
+            color: var(--gold, gold);
+            text-decoration: none;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+            z-index: 50;
+        }
+        .lobby-back-btn:hover {
+            transform: scale(1.06);
+            background: rgba(45, 27, 105, 0.85);
+            box-shadow: 0 6px 16px rgba(255, 215, 0, 0.25);
+        }
+        .lobby-back-btn i { font-size: 1.05rem; }
+
+        .online-wrap {
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
+        }
+        .name-card {
+            width: 100%;
+            background: var(--bg-card, rgba(17, 4, 74, 0.45));
+            border: 1.5px solid rgba(255, 215, 0, 0.22);
+            border-radius: 18px;
+            padding: 1rem 1.1rem;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: var(--shadow-card, 0 8px 24px rgba(0,0,0,0.4));
+            box-sizing: border-box;
+        }
+        .name-card h2 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+
+        .lobby-cta {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.85rem;
+            width: 100%;
+            margin-top: 0.25rem;
+        }
+        .lobby-cta button { min-width: 240px; }
+
+        .glass-card {
+            background: var(--bg-card, rgba(17, 4, 74, 0.45));
+            border: 1.5px solid rgba(255, 215, 0, 0.22);
+            border-radius: 18px;
+            padding: 1.25rem 1.1rem;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: var(--shadow-card, 0 8px 24px rgba(0,0,0,0.4));
+        }
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            margin-bottom: 0.9rem;
+        }
+        .field > label,
+        .field > .field-label {
+            font-weight: 800;
+            color: var(--gold);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
+        .field input, .field select {
+            padding: 0.6rem 0.8rem;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255, 215, 0, 0.25);
+            background: rgba(0, 0, 0, 0.25);
+            color: var(--text-primary, #fff);
+            font-family: 'Nunito', sans-serif;
+            font-size: 1rem;
+            outline: none;
+        }
+        .field input:focus, .field select:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.15);
+        }
+        .field input.code-input {
+            text-transform: uppercase;
+            letter-spacing: 6px;
+            font-family: 'Fredoka One', monospace;
+            font-size: 1.4rem;
+            text-align: center;
+        }
+        .color-choice {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .color-choice label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.5rem 0.85rem;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255, 215, 0, 0.18);
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .color-choice input[type="radio"]:checked + span {
+            color: var(--gold);
+        }
+        .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .btn-row button { flex: 1; min-width: 140px; }
+        .status-line {
+            font-size: 0.9rem;
+            color: var(--text-muted, #aaa);
+            min-height: 1.2em;
+            margin-top: 0.4rem;
+        }
+        .status-line.error { color: #ff7676; font-weight: 700; }
+        .status-line.success { color: #6fdc8c; font-weight: 700; }
+
+        /* Waiting overlay */
+        .waiting-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+        }
+        .waiting-overlay.visible { display: flex; }
+        .waiting-card {
+            background: var(--bg-card-2, rgba(17, 4, 74, 0.92));
+            border: 2px solid var(--gold, gold);
+            border-radius: 22px;
+            padding: 2rem 1.5rem;
+            max-width: 92%;
+            width: 420px;
+            text-align: center;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.55), 0 0 30px rgba(255,215,0,0.2);
+        }
+        .room-code-display {
+            font-family: 'Fredoka One', monospace;
+            font-size: 3rem;
+            letter-spacing: 0.5rem;
+            color: var(--gold, gold);
+            background: rgba(0, 0, 0, 0.35);
+            padding: 1rem 0.5rem;
+            border-radius: 14px;
+            margin: 1rem auto;
+            text-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+            user-select: all;
+        }
+        /* Compact pill that shows the full shareable URL underneath the code.
+           Long URLs are scrollable horizontally instead of breaking the card. */
+        .room-link-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px dashed rgba(255, 215, 0, 0.35);
+            border-radius: 10px;
+            padding: 0.45rem 0.55rem;
+            margin: 0.25rem auto 0.5rem;
+            font-family: 'Nunito', monospace;
+            font-size: 0.78rem;
+        }
+        .room-link-row .label {
+            color: var(--text-muted, #bbb);
+            flex: 0 0 auto;
+            font-weight: 700;
+        }
+        .room-link-row .url {
+            color: #fff;
+            flex: 1 1 auto;
+            overflow-x: auto;
+            white-space: nowrap;
+            user-select: all;
+            text-align: left;
+            padding: 0 4px;
+        }
+        .share-row {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 0.9rem;
+        }
+        .share-row button {
+            min-width: 110px;
+            flex: 0 0 auto;
+        }
+        /* Compact, centered cancel — clearly secondary, doesn't compete with
+           the primary share actions above. */
+        .cancel-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 1.25rem;
+        }
+        .btn-cancel-small {
+            min-width: 0;
+            max-width: none;
+            width: auto;
+            padding: 0.45rem 1.4rem;
+            font-size: 0.9rem;
+            background: rgba(0, 0, 0, 0.35);
+            color: var(--text-primary, #fff);
+            border: 1.5px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            box-shadow: none;
+            text-shadow: none;
+            font-weight: 700;
+            top: 0;
+        }
+        .btn-cancel-small:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.35);
+            top: 0;
+            filter: none;
+            box-shadow: none;
+        }
+        .btn-cancel-small:active {
+            top: 1px;
+            animation: none;
+            box-shadow: none;
+        }
+        .dots-loader {
+            display: inline-flex;
+            gap: 6px;
+            margin: 0.8rem auto;
+        }
+        .dots-loader span {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--gold, gold);
+            opacity: 0.4;
+            animation: dot-pulse 1.2s infinite ease-in-out;
+        }
+        .dots-loader span:nth-child(2) { animation-delay: 0.15s; }
+        .dots-loader span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.85); }
+            50%      { opacity: 1;   transform: scale(1.15); }
+        }
+
+        /* Generic centered modal (Create / Join). Uses the same gold-bordered
+           card vocabulary as .waiting-card so it feels like one family. */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            padding: 16px;
+            box-sizing: border-box;
+            opacity: 0;
+            transition: opacity 0.2s ease-out;
+        }
+        .modal.visible { display: flex; opacity: 1; }
+        .modal-card {
+            position: relative;
+            background: var(--bg-card-2, rgba(17, 4, 74, 0.95));
+            border: 2px solid var(--gold, gold);
+            border-radius: 22px;
+            padding: 1.6rem 1.4rem 1.4rem;
+            width: 100%;
+            max-width: 440px;
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.55), 0 0 30px rgba(255,215,0,0.18);
+            transform: scale(0.92);
+            transition: transform 0.2s ease-out;
+            box-sizing: border-box;
+        }
+        .modal.visible .modal-card { transform: scale(1); }
+        .modal-card h2 {
+            margin-top: 0;
+            padding-right: 2.2rem;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            width: 36px;
+            height: 36px;
+            min-width: 0;
+            max-width: none;
+            padding: 0;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.35);
+            color: var(--gold, gold);
+            border: 1.5px solid rgba(255, 215, 0, 0.35);
+            font-family: 'Nunito', sans-serif;
+            font-size: 1.3rem;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: none;
+            text-shadow: none;
+            top: 10px;
+        }
+        .modal-close:hover {
+            background: rgba(255, 215, 0, 0.18);
+            border-color: var(--gold, gold);
+            top: 10px;
+            filter: none;
+            box-shadow: none;
+        }
+        .modal-close:active {
+            top: 10px;
+            animation: none;
+            box-shadow: none;
+        }
+
+        @media (max-width: 480px) {
+            .room-code-display { font-size: 2.3rem; letter-spacing: 0.35rem; }
+            .modal { padding: 16px; }
+            .modal-card { padding: 1.4rem 1.1rem 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="lobby-back-btn" aria-label="Back to Main Menu">
+        <i class="fas fa-arrow-left"></i>
+    </a>
+
+    <div id="container">
+        <h1>Play Online</h1>
+
+        <div class="online-wrap">
+            <div class="name-card">
+                <h2 id="player-name-heading">Your Name</h2>
+                <div class="field" style="margin-bottom: 0.4rem;">
+                    <label for="player-name" class="sr-only">Your name</label>
+                    <input type="text" id="player-name" maxlength="20" placeholder="Enter your name"
+                           autocomplete="off" aria-labelledby="player-name-heading">
+                </div>
+                <div id="auth-status" class="status-line">Connecting...</div>
+            </div>
+
+            <div class="lobby-cta">
+                <button id="open-create-modal" disabled>Create</button>
+                <button id="open-join-modal" disabled>Join</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Room modal -->
+    <div id="create-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="create-modal-title">
+        <div class="modal-card">
+            <button type="button" class="modal-close" data-close-modal="create-modal" aria-label="Close">&times;</button>
+            <h2 id="create-modal-title">Create Room</h2>
+            <div class="field">
+                <span id="host-color-label" class="field-label">You play as</span>
+                <div class="color-choice" role="radiogroup" aria-labelledby="host-color-label">
+                    <label><input type="radio" name="host-color" value="black" checked> <span>Black (first)</span></label>
+                    <label><input type="radio" name="host-color" value="white"> <span>White</span></label>
+                </div>
+            </div>
+            <div class="field">
+                <label for="create-time-limit">Time per move</label>
+                <select id="create-time-limit">
+                    <option value="0">Unlimited</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30" selected>30 seconds</option>
+                    <option value="60">60 seconds</option>
+                    <option value="90">90 seconds</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button id="create-btn" disabled>Create Room</button>
+            </div>
+            <div id="create-status" class="status-line"></div>
+        </div>
+    </div>
+
+    <!-- Join Room modal -->
+    <div id="join-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="join-modal-title">
+        <div class="modal-card">
+            <button type="button" class="modal-close" data-close-modal="join-modal" aria-label="Close">&times;</button>
+            <h2 id="join-modal-title">Join Room</h2>
+            <div class="field">
+                <label for="join-code">Room code</label>
+                <input type="text" id="join-code" class="code-input" maxlength="5" autocomplete="off" placeholder="XXXXX">
+            </div>
+            <div class="btn-row">
+                <button id="join-btn" disabled>Join Room</button>
+            </div>
+            <div id="join-status" class="status-line"></div>
+        </div>
+    </div>
+
+    <!-- Waiting-for-opponent overlay -->
+    <div id="waiting-overlay" class="waiting-overlay" role="dialog" aria-label="Waiting for opponent">
+        <div class="waiting-card">
+            <h2 style="margin-top:0;">Share this code</h2>
+            <p style="color: var(--text-muted, #ccc); margin: 0.25rem 0 0.5rem;">
+                Your friend enters this in the Join Room box.
+            </p>
+            <div id="display-code" class="room-code-display">-----</div>
+            <div class="room-link-row">
+                <span class="label">Link:</span>
+                <span id="display-link" class="url">-</span>
+            </div>
+            <div class="share-row">
+                <button id="copy-code-btn"><i class="fas fa-copy"></i> Copy Code</button>
+                <button id="copy-link-btn"><i class="fas fa-link"></i> Copy Link</button>
+                <button id="share-code-btn"><i class="fas fa-share-alt"></i> Share</button>
+                <button id="whatsapp-code-btn" style="background: linear-gradient(135deg,#25D366,#128C7E);">
+                    <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
+            </div>
+            <div style="margin-top: 1.25rem; color: var(--text-muted, #ccc);">
+                <div class="dots-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div>Waiting for opponent to join...</div>
+            </div>
+            <div class="cancel-row">
+                <button id="cancel-waiting-btn" class="btn-cancel-small">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <a style="color: rgb(175, 175, 175); text-decoration: none;" href="https://www.instagram.com/sidonstudio/">Developed by @SidonStudio</a>
+    </footer>
+
+    <script>
+        (function () {
+            const NAME_KEY = 'othelloOnlineName';
+            const nameInput = document.getElementById('player-name');
+            const authStatus = document.getElementById('auth-status');
+            const createBtn = document.getElementById('create-btn');
+            const joinBtn = document.getElementById('join-btn');
+            const joinCodeInput = document.getElementById('join-code');
+            const createStatus = document.getElementById('create-status');
+            const joinStatus = document.getElementById('join-status');
+
+            const openCreateModalBtn = document.getElementById('open-create-modal');
+            const openJoinModalBtn = document.getElementById('open-join-modal');
+            const createModal = document.getElementById('create-modal');
+            const joinModal = document.getElementById('join-modal');
+
+            const waitingOverlay = document.getElementById('waiting-overlay');
+            const displayCode = document.getElementById('display-code');
+            const displayLink = document.getElementById('display-link');
+            const copyBtn = document.getElementById('copy-code-btn');
+            const copyLinkBtn = document.getElementById('copy-link-btn');
+            const shareBtn = document.getElementById('share-code-btn');
+            const whatsappBtn = document.getElementById('whatsapp-code-btn');
+            const cancelBtn = document.getElementById('cancel-waiting-btn');
+
+            // --- Modal open/close helpers ---
+            // Tracks the trigger element so focus can be restored on close,
+            // and the first interactive control to focus when opening.
+            let lastFocusedTrigger = null;
+
+            function openModal(modal, focusTarget) {
+                lastFocusedTrigger = document.activeElement;
+                modal.classList.add('visible');
+                // Defer focus until after the fade-in transition starts so the
+                // ring is visible and screen readers announce the dialog.
+                setTimeout(() => {
+                    if (focusTarget && typeof focusTarget.focus === 'function') {
+                        focusTarget.focus();
+                        if (focusTarget.select && focusTarget.tagName === 'INPUT') {
+                            try { focusTarget.select(); } catch (_) {}
+                        }
+                    }
+                }, 30);
+            }
+            function closeModal(modal) {
+                if (!modal || !modal.classList.contains('visible')) return;
+                modal.classList.remove('visible');
+                if (lastFocusedTrigger && typeof lastFocusedTrigger.focus === 'function') {
+                    try { lastFocusedTrigger.focus(); } catch (_) {}
+                }
+                lastFocusedTrigger = null;
+            }
+            function getOpenModal() {
+                if (createModal.classList.contains('visible')) return createModal;
+                if (joinModal.classList.contains('visible')) return joinModal;
+                return null;
+            }
+
+            openCreateModalBtn.addEventListener('click', () => {
+                openModal(createModal, document.getElementById('create-time-limit'));
+            });
+            openJoinModalBtn.addEventListener('click', () => {
+                openModal(joinModal, joinCodeInput);
+            });
+
+            // × buttons inside each modal
+            document.querySelectorAll('[data-close-modal]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-close-modal');
+                    closeModal(document.getElementById(id));
+                });
+            });
+
+            // Backdrop click closes (only when the click hits the overlay itself)
+            [createModal, joinModal].forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal(modal);
+                });
+            });
+
+            // Esc closes whichever modal is open
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const m = getOpenModal();
+                    if (m) closeModal(m);
+                }
+            });
+
+            nameInput.value = localStorage.getItem(NAME_KEY) || '';
+            nameInput.addEventListener('input', () => {
+                localStorage.setItem(NAME_KEY, nameInput.value.trim());
+            });
+
+            joinCodeInput.addEventListener('input', () => {
+                const cleaned = joinCodeInput.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, '')
+                    .slice(0, 5);
+                if (cleaned !== joinCodeInput.value) joinCodeInput.value = cleaned;
+            });
+
+            // Capture any module-level error from firebase-config.js so we can
+            // show the real reason (network/CSP/file://) instead of a generic
+            // "not loaded" timeout.
+            let moduleLoadError = null;
+            window.addEventListener('error', (ev) => {
+                const src = ev.filename || '';
+                if (src.includes('firebase') || src.includes('gstatic')) {
+                    moduleLoadError = ev.message || String(ev.error || 'Unknown module error');
+                }
+            });
+            window.addEventListener('unhandledrejection', (ev) => {
+                const reason = ev.reason;
+                const msg = (reason && reason.message) || String(reason || '');
+                if (/firebase|gstatic/i.test(msg)) moduleLoadError = msg;
+            });
+
+            async function waitForFB() {
+                const start = Date.now();
+                while (!window.FB) {
+                    if (Date.now() - start > 15000) {
+                        if (location.protocol === 'file:') {
+                            throw new Error("Page opened via file:// — ES modules can't load from CDN. Serve over http(s) (e.g. `npx serve .`).");
+                        }
+                        if (moduleLoadError) {
+                            throw new Error(`Firebase SDK failed to load: ${moduleLoadError}`);
+                        }
+                        throw new Error('Firebase SDK did not load in 15s. Check Network tab — gstatic.com may be blocked, or hard-reload to bust cache (Ctrl+Shift+R).');
+                    }
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                return window.FB.ready;
+            }
+
+            async function waitForRoomLib() {
+                const start = Date.now();
+                while (!window.Room) {
+                    if (Date.now() - start > 15000) throw new Error('Multiplayer library not loaded.');
+                    await new Promise(r => setTimeout(r, 50));
+                }
+            }
+
+            async function bootstrap() {
+                try {
+                    await waitForFB();
+                    await waitForRoomLib();
+                    authStatus.textContent = 'Connected. Ready to play.';
+                    authStatus.classList.add('success');
+                    createBtn.disabled = false;
+                    joinBtn.disabled = false;
+                    openCreateModalBtn.disabled = false;
+                    openJoinModalBtn.disabled = false;
+
+                    handleAutoJoinFromUrl();
+                } catch (e) {
+                    console.error('[online.html] bootstrap failed:', e);
+                    const hint = (window.FB && window.FB.initError)
+                        ? `Firebase init failed: ${window.FB.initError}`
+                        : (e.message || String(e));
+                    authStatus.textContent = hint;
+                    authStatus.classList.add('error');
+                }
+            }
+
+            // If the user landed via a shared invite link (?join=CODE), prefill
+            // the join modal and trigger join automatically. We deliberately
+            // keep the ?join param in the URL until the join SUCCEEDS — if it
+            // fails (room not found / network) a manual reload retries instead
+            // of leaving the user stranded with no code visible.
+            function handleAutoJoinFromUrl() {
+                const params = new URLSearchParams(location.search);
+                const raw = params.get('join');
+                if (!raw) return;
+                const code = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+                if (code.length < 4) return;
+
+                joinCodeInput.value = code;
+                openModal(joinModal, joinCodeInput);
+                setTimeout(() => { if (!joinBtn.disabled) joinBtn.click(); }, 200);
+            }
+
+            // Strip ?join=… from the address bar once the auto-join has
+            // committed (used right before navigating to the game page so a
+            // back-button + reload doesn't replay the auto-join loop).
+            function clearJoinParamFromUrl() {
+                const params = new URLSearchParams(location.search);
+                if (!params.has('join')) return;
+                params.delete('join');
+                const cleanUrl = location.pathname + (params.toString() ? `?${params}` : '') + location.hash;
+                history.replaceState(null, '', cleanUrl);
+            }
+
+            bootstrap();
+
+            // --- Share helpers ---
+            // Build an absolute URL back to this lobby with ?join=CODE so the
+            // friend just clicks the link and lands pre-filled / auto-joining.
+            function joinLink(code) {
+                const url = new URL(location.href);
+                url.search = '';
+                url.hash = '';
+                url.searchParams.set('join', code);
+                return url.toString();
+            }
+            function shareText(code) {
+                return `Join my Othello game!\nRoom code: ${code}\n${joinLink(code)}`;
+            }
+            function copyToClipboard(text) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    return navigator.clipboard.writeText(text);
+                }
+                return new Promise((resolve, reject) => {
+                    try {
+                        const ta = document.createElement('textarea');
+                        ta.value = text;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        ta.remove();
+                        resolve();
+                    } catch (e) { reject(e); }
+                });
+            }
+
+            let currentCode = null;
+            let playersUnsub = null;
+
+            function showWaitingFor(code) {
+                currentCode = code;
+                displayCode.textContent = code;
+                if (displayLink) displayLink.textContent = joinLink(code);
+                waitingOverlay.classList.add('visible');
+            }
+            function hideWaiting() {
+                waitingOverlay.classList.remove('visible');
+            }
+
+            // --- Create Room ---
+            createBtn.addEventListener('click', async () => {
+                const name = (nameInput.value || '').trim() || 'Host';
+                const hostColor = (document.querySelector('input[name="host-color"]:checked') || {}).value || 'black';
+                const timeLimit = parseInt(document.getElementById('create-time-limit').value, 10) || 0;
+
+                createBtn.disabled = true;
+                joinBtn.disabled = true;
+                openCreateModalBtn.disabled = true;
+                openJoinModalBtn.disabled = true;
+                createStatus.classList.remove('error', 'success');
+                createStatus.textContent = 'Creating room...';
+
+                try {
+                    const res = await window.Room.create({ name, hostColor, timeLimit });
+                    createStatus.textContent = `Room created: ${res.code}`;
+                    createStatus.classList.add('success');
+                    // Hide the create modal before showing the waiting overlay
+                    // so they don't visually stack.
+                    closeModal(createModal);
+                    showWaitingFor(res.code);
+
+                    window.Room.on('players', function onPlayersChange(players) {
+                        if (players && players.guest && players.guest.uid) {
+                            window.Room.off('players', onPlayersChange);
+                            setTimeout(() => {
+                                // location.replace (not href) — the lobby is
+                                // no longer a meaningful "back" target once
+                                // we've committed to the game, and it also
+                                // avoids the "Session History Item Has Been
+                                // Marked Skippable" warning Chrome emits for
+                                // navigations not synchronously tied to a
+                                // user gesture.
+                                location.replace(`othelloonline.html?code=${res.code}`);
+                            }, 300);
+                        }
+                    });
+                } catch (e) {
+                    console.error(e);
+                    createStatus.textContent = e.message || 'Failed to create room.';
+                    createStatus.classList.add('error');
+                    createBtn.disabled = false;
+                    joinBtn.disabled = false;
+                    openCreateModalBtn.disabled = false;
+                    openJoinModalBtn.disabled = false;
+                }
+            });
+
+            // --- Join Room ---
+            joinBtn.addEventListener('click', async () => {
+                const name = (nameInput.value || '').trim() || 'Guest';
+                const code = (joinCodeInput.value || '').trim().toUpperCase();
+                if (code.length < 4) {
+                    joinStatus.textContent = 'Enter a valid code.';
+                    joinStatus.classList.add('error');
+                    return;
+                }
+                joinBtn.disabled = true;
+                createBtn.disabled = true;
+                openCreateModalBtn.disabled = true;
+                openJoinModalBtn.disabled = true;
+                joinStatus.classList.remove('error', 'success');
+                joinStatus.textContent = 'Joining...';
+                try {
+                    await window.Room.join({ code, name });
+                    joinStatus.textContent = 'Joined! Loading game...';
+                    joinStatus.classList.add('success');
+                    // Only strip ?join=… from the URL after the join has
+                    // actually committed — see handleAutoJoinFromUrl() for why.
+                    clearJoinParamFromUrl();
+                    closeModal(joinModal);
+                    setTimeout(() => {
+                        // See create flow above — location.replace avoids the
+                        // skippable history entry warning AND is the right UX
+                        // (Back from the game room shouldn't return to the
+                        // lobby and re-trigger an auto-join loop).
+                        location.replace(`othelloonline.html?code=${code}`);
+                    }, 250);
+                } catch (e) {
+                    console.error(e);
+                    joinStatus.textContent = e.message || 'Failed to join.';
+                    joinStatus.classList.add('error');
+                    joinBtn.disabled = false;
+                    createBtn.disabled = false;
+                    openCreateModalBtn.disabled = false;
+                    openJoinModalBtn.disabled = false;
+                }
+            });
+
+            // --- Waiting overlay buttons ---
+            copyBtn.addEventListener('click', async () => {
+                if (!currentCode) return;
+                try {
+                    await copyToClipboard(currentCode);
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy Code';
+                    }, 1500);
+                } catch (e) {
+                    console.error(e);
+                }
+            });
+            // Separate "Copy Link" — pastes the clickable invite URL (with
+            // ?join=CODE) so the friend just taps the link to land pre-filled
+            // and auto-join.
+            copyLinkBtn.addEventListener('click', async () => {
+                if (!currentCode) return;
+                try {
+                    await copyToClipboard(joinLink(currentCode));
+                    copyLinkBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(() => {
+                        copyLinkBtn.innerHTML = '<i class="fas fa-link"></i> Copy Link';
+                    }, 1500);
+                } catch (e) {
+                    console.error(e);
+                }
+            });
+            shareBtn.addEventListener('click', async () => {
+                if (!currentCode) return;
+                const text = shareText(currentCode);
+                if (navigator.share) {
+                    try { await navigator.share({ title: 'Othello', text }); } catch (_) {}
+                } else {
+                    try { await copyToClipboard(text); } catch (_) {}
+                }
+            });
+            whatsappBtn.addEventListener('click', () => {
+                if (!currentCode) return;
+                const url = `https://wa.me/?text=${encodeURIComponent(shareText(currentCode))}`;
+                window.open(url, '_blank');
+            });
+            cancelBtn.addEventListener('click', async () => {
+                hideWaiting();
+                try { await window.Room.leave(); } catch (_) {}
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+                openCreateModalBtn.disabled = false;
+                openJoinModalBtn.disabled = false;
+                createStatus.textContent = 'Cancelled.';
+                createStatus.classList.remove('success', 'error');
+            });
+        })();
+    </script>
+</body>
+</html>

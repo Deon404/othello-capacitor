@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="320" height="320" role="img" aria-label="Iridescent Pearl Disc">
+  <title>Iridescent Pearl Disc</title>
+  <desc>Lustrous pearl disc with vivid iridescent magenta, peach, cyan and lavender sheen swirls over a creamy white body, with bright sparkles and a glossy top-left specular highlight.</desc>
+
+  <defs>
+    <!-- Creamy pearl body: bright pearly centre fading to a richer rose periphery -->
+    <radialGradient id="pl-body" cx="0.40" cy="0.30" r="0.92">
+      <stop offset="0"    stop-color="#ffffff"/>
+      <stop offset="0.18" stop-color="#ffeef4"/>
+      <stop offset="0.50" stop-color="#f0c8d8"/>
+      <stop offset="0.82" stop-color="#a86890"/>
+      <stop offset="1"    stop-color="#4a2050"/>
+    </radialGradient>
+
+    <!-- Bold magenta-pink iridescent flash (top-right) -->
+    <radialGradient id="pl-iri-pink" cx="0.65" cy="0.38" r="0.40">
+      <stop offset="0"    stop-color="#ff9ed0" stop-opacity="0.95"/>
+      <stop offset="0.45" stop-color="#ff5aa0" stop-opacity="0.65"/>
+      <stop offset="0.85" stop-color="#a02868" stop-opacity="0.15"/>
+      <stop offset="1"    stop-color="#400828" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bold peach-orange iridescent flash (lower-left) -->
+    <radialGradient id="pl-iri-peach" cx="0.32" cy="0.65" r="0.36">
+      <stop offset="0"    stop-color="#ffc488" stop-opacity="0.90"/>
+      <stop offset="0.50" stop-color="#ff8e58" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#a04020" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bold cyan iridescent flash (upper-left) -->
+    <radialGradient id="pl-iri-cyan" cx="0.28" cy="0.30" r="0.32">
+      <stop offset="0"    stop-color="#9ee8ff" stop-opacity="0.92"/>
+      <stop offset="0.55" stop-color="#4ec8ee" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#1a6890" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bold lavender iridescent flash (lower-right) -->
+    <radialGradient id="pl-iri-lavender" cx="0.72" cy="0.72" r="0.32">
+      <stop offset="0"    stop-color="#d8b8ff" stop-opacity="0.90"/>
+      <stop offset="0.55" stop-color="#a07cf0" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#502080" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Mint-green iridescent accent (small, top) -->
+    <radialGradient id="pl-iri-mint" cx="0.50" cy="0.20" r="0.20">
+      <stop offset="0"    stop-color="#b8ffd8" stop-opacity="0.75"/>
+      <stop offset="0.6"  stop-color="#5ae0a0" stop-opacity="0.30"/>
+      <stop offset="1"    stop-color="#0a8050" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Rim shading: deeper so the rainbow reads against any felt -->
+    <radialGradient id="pl-rim-shade" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.74" stop-color="#3a1840" stop-opacity="0"/>
+      <stop offset="0.92" stop-color="#28102e" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#10041a" stop-opacity="0.92"/>
+    </radialGradient>
+
+    <!-- Main glossy specular highlight -->
+    <radialGradient id="pl-spec-main" cx="0.30" cy="0.22" r="0.30">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="0.45" stop-color="#fff0f8" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Counter-highlight (bottom-right) -->
+    <radialGradient id="pl-spec-small" cx="0.7" cy="0.78" r="0.20">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.6"  stop-color="#ffd8ee" stop-opacity="0.22"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ground shadow -->
+    <radialGradient id="pl-shadow" cx="0.5" cy="0.55" r="0.5">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="0.85" stop-color="#000000" stop-opacity="0.12"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Iridescent swirl stroke -->
+    <linearGradient id="pl-swirl-warm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"    stop-color="#ffb8d8" stop-opacity="0.95"/>
+      <stop offset="0.5"  stop-color="#ffd098" stop-opacity="0.75"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0.50"/>
+    </linearGradient>
+
+    <linearGradient id="pl-swirl-cool" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0"    stop-color="#a8ddff" stop-opacity="0.90"/>
+      <stop offset="0.5"  stop-color="#c8b8ff" stop-opacity="0.70"/>
+      <stop offset="1"    stop-color="#ffffff" stop-opacity="0.45"/>
+    </linearGradient>
+
+    <!-- Sparkle glow -->
+    <radialGradient id="pl-spark-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.40" stop-color="#ffd8f0" stop-opacity="0.55"/>
+      <stop offset="1"    stop-color="#ffb8d8" stop-opacity="0"/>
+    </radialGradient>
+
+    <clipPath id="pl-clip">
+      <circle cx="160" cy="160" r="113"/>
+    </clipPath>
+  </defs>
+
+  <!-- soft ground shadow -->
+  <ellipse cx="160" cy="175" rx="120" ry="118" fill="url(#pl-shadow)"/>
+
+  <!-- main pearl body -->
+  <circle cx="160" cy="160" r="115" fill="url(#pl-body)"/>
+
+  <!-- Iridescent sheen layers, clipped to the disc -->
+  <g clip-path="url(#pl-clip)">
+    <rect x="45" y="45" width="230" height="230" fill="url(#pl-iri-cyan)"/>
+    <rect x="45" y="45" width="230" height="230" fill="url(#pl-iri-pink)"/>
+    <rect x="45" y="45" width="230" height="230" fill="url(#pl-iri-peach)"/>
+    <rect x="45" y="45" width="230" height="230" fill="url(#pl-iri-lavender)"/>
+    <rect x="45" y="45" width="230" height="230" fill="url(#pl-iri-mint)"/>
+
+    <!-- iridescent sheen swirls (now clearly visible) -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M70,98 C108,118 152,103 178,138 C204,178 178,210 222,236"
+            stroke="url(#pl-swirl-warm)" stroke-width="3.6" opacity="0.85"/>
+      <path d="M58,165 C100,148 130,178 168,165 C208,152 232,182 258,170"
+            stroke="url(#pl-swirl-cool)" stroke-width="2.8" opacity="0.78"/>
+      <path d="M92,235 C120,215 145,228 178,205 C212,180 238,205 252,185"
+            stroke="url(#pl-swirl-warm)" stroke-width="2.4" opacity="0.70"/>
+      <path d="M118,76 C132,108 105,142 135,170"
+            stroke="url(#pl-swirl-cool)" stroke-width="1.8" opacity="0.62"/>
+      <path d="M200,82 C190,118 218,148 200,198"
+            stroke="url(#pl-swirl-warm)" stroke-width="1.6" opacity="0.58"/>
+    </g>
+
+    <!-- iridescent pinpoint sparkles -->
+    <circle cx="135" cy="115" r="6.5" fill="url(#pl-spark-glow)"/>
+    <circle cx="190" cy="158" r="5"   fill="url(#pl-spark-glow)"/>
+    <circle cx="108" cy="195" r="5.5" fill="url(#pl-spark-glow)"/>
+    <circle cx="225" cy="120" r="4.5" fill="url(#pl-spark-glow)"/>
+    <circle cx="148" cy="232" r="4.5" fill="url(#pl-spark-glow)"/>
+
+    <circle cx="135" cy="115" r="1.5" fill="#ffffff"/>
+    <circle cx="190" cy="158" r="1.3" fill="#ffffff"/>
+    <circle cx="108" cy="195" r="1.4" fill="#ffffff"/>
+    <circle cx="225" cy="120" r="1.2" fill="#ffffff"/>
+    <circle cx="148" cy="232" r="1.2" fill="#ffffff"/>
+
+    <!-- pink hue accent sparkles -->
+    <circle cx="215" cy="200" r="3" fill="#ff70b8" fill-opacity="0.65"/>
+    <circle cx="215" cy="200" r="1.0" fill="#ffffff"/>
+
+    <circle cx="92" cy="138" r="2.6" fill="#7adcff" fill-opacity="0.60"/>
+    <circle cx="92" cy="138" r="0.9" fill="#ffffff"/>
+  </g>
+
+  <!-- inner rim shading -->
+  <circle cx="160" cy="160" r="115" fill="url(#pl-rim-shade)"/>
+
+  <!-- top-left specular highlight (glossy gloss) -->
+  <ellipse cx="120" cy="105" rx="54" ry="35" fill="url(#pl-spec-main)"/>
+
+  <!-- subtle bottom-right counter-highlight -->
+  <ellipse cx="208" cy="220" rx="34" ry="19" fill="url(#pl-spec-small)"/>
+
+  <!-- tight white hotspot -->
+  <ellipse cx="118" cy="98" rx="14" ry="6.5" fill="#ffffff" fill-opacity="0.95"/>
+
+  <!-- outer rim line -->
+  <circle cx="160" cy="160" r="115" fill="none" stroke="#28102e" stroke-opacity="0.75" stroke-width="2"/>
+</svg>

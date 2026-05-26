@@ -1,0 +1,10 @@
+{
+  "appId": "com.sidonstudio.voidllo",
+  "appName": "Voidllo",
+  "webDir": "www",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}

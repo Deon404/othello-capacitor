@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Othello - Settings</title>
+    <link rel="stylesheet" href="assets/fontawesome/css/all.min.css"/>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts bundled locally via style.css @font-face — no remote fetch. -->
+    <script src="shared.js"></script>
+    <style>
+        /* settings.html — page-specific overrides only; base look from style.css */
+        body {
+            justify-content: center;
+        }
+
+        h1 {
+            font-family: 'Fredoka One', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-size: 2.8rem;
+            margin-bottom: 1.5rem;
+            color: var(--gold);
+            text-shadow: 3px 3px 0 var(--bg-deep), 0 0 12px var(--gold-glow);
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .settings-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            border-radius: 20px;
+            background: var(--bg-card);
+            border: 1.5px solid rgba(255, 215, 0, 0.22);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: var(--shadow-card), 0 0 30px rgba(255,215,0,0.10);
+            width: 86%;
+            max-width: 600px;
+            box-sizing: border-box;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .setting-row label {
+            font-family: 'Fredoka One', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-size: 1.1rem;
+            color: var(--gold);
+            margin-right: 1rem;
+            flex-shrink: 0;
+            letter-spacing: 0.3px;
+        }
+
+        .setting-row input[type="range"],
+        .setting-row select {
+            flex-grow: 1;
+            max-width: 60%;
+        }
+        .setting-row span {
+            flex-shrink: 0;
+            min-width: 40px;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        /* Pretty themed range slider */
+        input[type="range"] {
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            border-radius: 50px;
+            background: linear-gradient(to right, var(--gold), var(--gold-glow));
+            outline: none;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, var(--gold-light), var(--gold-dark));
+            border: 2px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, var(--gold-light), var(--gold-dark));
+            border: 2px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        /* Custom purple/gold checkbox (sound toggle) */
+        input[type="checkbox"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 52px;
+            height: 28px;
+            border-radius: 50px;
+            background: rgba(17, 4, 74, 0.6);
+            border: 1.5px solid var(--btn-secondary-border);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            outline: none;
+        }
+        input[type="checkbox"]::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 3px;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, #aaa);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            transition: left 0.25s ease, background 0.25s ease;
+        }
+        input[type="checkbox"]:checked {
+            background: linear-gradient(90deg, var(--gold-dark), var(--gold));
+            border-color: var(--gold);
+        }
+        input[type="checkbox"]:checked::before {
+            left: 27px;
+            background: radial-gradient(circle at 30% 30%, var(--gold-light), var(--gold));
+        }
+
+        button#back-to-menu {
+            padding: 14px 32px;
+            font-size: 1.05rem;
+        }
+
+        /* Theme selection */
+        #theme-select {
+            padding: 10px 14px;
+            font-size: 1rem;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255, 215, 0, 0.3);
+            background-color: rgba(17, 4, 74, 0.6);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 700;
+        }
+        #theme-select:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px var(--gold-glow);
+        }
+        #theme-select option { background: var(--bg-deep); color: var(--text-primary); }
+
+        /* ----------------------- Disk Skin Picker ----------------------- */
+        .skin-picker {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding-top: 4px;
+            border-top: 1.5px dashed rgba(255, 215, 0, 0.18);
+            margin-top: 4px;
+            /* Defensive: prevent any future child (grid, future custom rows,
+               etc.) from pushing the picker wider than its allocated 100% of
+               the settings-container. Pair with `min-width: 0` on .style-cards
+               above so the grid actually respects its parent width. */
+            min-width: 0;
+            box-sizing: border-box;
+        }
+        .skin-picker .section-title {
+            font-family: 'Fredoka One', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: var(--gold);
+            font-size: 1.15rem;
+            letter-spacing: 0.4px;
+            text-align: center;
+            margin: 6px 0 0;
+        }
+        .skin-picker .field-label {
+            display: block;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 700;
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            opacity: 0.85;
+        }
+
+        /* Match-theme toggle row inside the skin picker */
+        .match-theme-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1.5px solid rgba(255, 255, 255, 0.10);
+            cursor: pointer;
+            transition: border-color 0.18s ease, background 0.18s ease;
+        }
+        .match-theme-row:hover { border-color: var(--gold-soft); background: rgba(255, 255, 255, 0.08); }
+        .match-theme-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: left;
+        }
+        .match-theme-title {
+            font-family: 'Fredoka One', 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: var(--gold);
+            font-size: 0.98rem;
+            letter-spacing: 0.3px;
+        }
+        .match-theme-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .pair-preview {
+            display: flex;
+            justify-content: center;
+            gap: 28px;
+            padding: 4px 0;
+        }
+        .pair-preview .preview-cell { text-align: center; }
+        /* Big preview disks — render the chosen style's SVG straight via
+           background-image (no hue-rotate tinting anymore). Strict 1:1
+           square with aspect-ratio lock so they never read as ovals.
+           background-size: contain guarantees the full SVG (disc + aura +
+           ground-shadow) is always fully visible inside the box, so future
+           skins with slightly different internal geometry can never bleed. */
+        .pair-preview .preview-disk {
+            width: 108px;
+            height: 108px;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+            overflow: hidden;
+            filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.45));
+        }
+        .pair-preview .preview-label {
+            margin-top: 4px;
+            font-family: 'Nunito', sans-serif;
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            opacity: 0.7;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* Style picker — three cards per row, each showing the actual SVG
+           art the game will use plus a human label below. Cards are full-
+           width within their grid track and the inner circular art lives
+           in a square wrapper so it stays a perfect disc on every screen.
+
+           IMPORTANT: `min-width: 0` on the grid is required because grid
+           children default to `min-width: auto`, and we render each card as
+           a <button> — which picks up the global `button { min-width: 200px }`
+           rule from style.css. Without `min-width: 0`, the 200px-wide cards
+           would refuse to shrink to their 1fr track and would blow the grid
+           past the container's right edge (the original overflow bug). */
+        .style-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            padding: 4px 6px;
+            min-width: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .style-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            padding: 14px 8px 12px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            cursor: pointer;
+            transition: transform .14s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+            outline: none;
+            font-family: 'Nunito', sans-serif;
+            color: var(--text-primary);
+            /* Defensive clip: even if a future SVG ever has a wider aura than
+               expected, the rounded card border still contains it. The art
+               container below uses background-size: contain, so this is a
+               belt-and-suspenders backstop, not the primary defense. */
+            overflow: hidden;
+            /* ---- Neutralise the global `button {}` rule from style.css ----
+               style.css defines a gold-pill primary CTA button with
+               `min-width: 200px; max-width: 280px;` plus a gold gradient,
+               Fredoka One font, gold drop-shadow, a `top:` bump on hover/
+               active, and a `cc-bounce` click animation. Our style-card is
+               a flat selection card, NOT a CTA, so we explicitly opt out of
+               every one of those traits. The min-width/max-width reset is
+               the actual fix for the picker-overflow bug — without it the
+               three 200px-wide cards added up to 624px and pushed past the
+               534px-wide picker (and 59px past the container's gold border). */
+            min-width: 0;
+            max-width: none;
+            width: 100%;
+            min-height: 0;
+            box-sizing: border-box;
+            box-shadow: none;
+            top: 0;
+            animation: none;
+            filter: none;
+            font-weight: 700;
+        }
+        .style-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.09);
+            border-color: var(--gold-soft);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--gold-glow);
+            /* Cancel `button:hover { top: 2px; filter: brightness(1.05); }`
+               from style.css so only our card's translateY lift applies. */
+            top: 0;
+            filter: none;
+        }
+        .style-card:focus-visible {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px var(--gold-strong);
+            top: 0;
+        }
+        .style-card:active {
+            /* Cancel `button:active { top: 4px; animation: cc-bounce ... }`
+               from style.css — the cards should select instantly, not bounce
+               like a gold pill CTA. */
+            top: 0;
+            animation: none;
+        }
+        .style-card.active {
+            border-color: var(--gold);
+            background: rgba(255, 215, 0, 0.10);
+            box-shadow: 0 0 0 2px var(--gold), 0 0 14px var(--gold-glow), 0 6px 18px rgba(0, 0, 0, 0.4);
+            top: 0;
+        }
+        /* Art container — uses background-size: contain so the FULL SVG
+           (disc body + outer glow/aura + soft ground shadow) is guaranteed
+           to fit inside the box. No matter what internal radius or aura
+           padding a future skin uses, it can never bleed past the container.
+           The container itself is sized generously (80px) so the discs still
+           feel prominent and tappable even with `contain`'s mandatory padding. */
+        .style-card-art {
+            width: 80px;
+            height: 80px;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: contain;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+        }
+        .style-card-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.15;
+            color: var(--text-primary);
+            opacity: 0.9;
+            letter-spacing: 0.2px;
+        }
+        .style-card.active .style-card-label { color: var(--gold); opacity: 1; }
+        /* Selected-checkmark — top-right of the active card */
+        .style-card.active::before {
+            content: '\2713';
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--gold);
+            color: var(--bg-deep);
+            font-size: 0.78rem;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px var(--gold-glow);
+        }
+
+        /* Section dividers + button hierarchy */
+        .settings-section-divider {
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 215, 0, 0.25) 50%, transparent 100%);
+            border: none;
+            margin: 4px 0;
+        }
+        .settings-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 2.2rem; }
+            .settings-container { padding: 1.5rem; gap: 1.1rem; }
+            .setting-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+            .setting-row label { font-size: 1rem; margin-right: 0; }
+            .setting-row input[type="range"],
+            .setting-row select { max-width: 100%; }
+            button#back-to-menu { padding: 12px 26px; font-size: 1rem; }
+            .pair-preview .preview-disk { width: 92px; height: 92px; }
+        }
+        @media (max-width: 460px) {
+            .style-cards   { gap: 10px; }
+            .style-card    { padding: 12px 6px 10px; border-radius: 14px; }
+            /* Keep background-size: contain inherited from the base rule —
+               only the box dimensions need to shrink for narrower viewports.
+               Never reintroduce % background-size here; that's what caused
+               the original overflow on desktop. */
+            .style-card-art { width: 66px; height: 66px; }
+            .style-card-label { font-size: 0.72rem; }
+            .pair-preview .preview-disk { width: 84px; height: 84px; }
+        }
+        @media (max-width: 360px) {
+            .style-cards   { gap: 8px; }
+            .style-card    { padding: 10px 5px 8px; }
+            .style-card-art { width: 58px; height: 58px; }
+            .pair-preview .preview-disk { width: 74px; height: 74px; }
+        }
+        @media (max-width: 400px) {
+            h1 { font-size: 1.7rem; }
+            .settings-container { padding: 1.1rem; gap: 1rem; }
+            .setting-row label { font-size: 0.95rem; }
+            button#back-to-menu { padding: 10px 22px; font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+<h1>Othello - Settings</h1>
+
+<div class="settings-container">
+
+    <div class="setting-row">
+        <label for="music-volume">Music Volume:</label>
+        <input type="range" id="music-volume" min="0" max="100" value="50">
+        <span id="volume-display">50%</span>
+    </div>
+
+    <div class="setting-row">
+        <label for="theme-select">Select Color Theme:</label>
+        <select id="theme-select">
+            <option value="default">Default</option>
+            <option value="dark">Dark</option>
+            <option value="forest">Forest</option>
+            <option value="grapefruit">Grapefruit</option>
+            <option value="bittersweet">Bittersweet</option>
+            <option value="sunflower">Sunflower</option>
+            <option value="grass">Grass</option>
+            <option value="mint">Mint</option>
+            <option value="aqua">Aqua</option>
+            <option value="bluejeans">Blue Jeans</option>
+            <option value="lavenderpurple">Lavender (Purple)</option>
+            <option value="lavenderpink">Lavender (Pink)</option>
+            <option value="skintone">Skin Tone</option>
+            <option value="lightgray">Light Gray</option>
+            <option value="darkgray">Dark Gray</option>
+
+        </select>
+    </div>
+
+    <div class="setting-row">
+        <label for="sound-toggle">Sound effects:</label>
+        <input type="checkbox" id="sound-toggle">
+    </div>
+
+    <hr class="settings-section-divider" aria-hidden="true">
+
+    <div class="skin-picker" id="skin-picker">
+        <div class="section-title">Disk Style</div>
+
+        <label class="match-theme-row">
+            <span class="match-theme-text">
+                <span class="match-theme-title">Match Color Theme</span>
+                <span class="match-theme-sub">Auto-pair styles with the active color theme</span>
+            </span>
+            <input type="checkbox" id="disk-match-theme">
+        </label>
+
+        <div class="pair-preview">
+            <div class="preview-cell">
+                <div id="preview-black" class="preview-disk" role="img" aria-label="Black disk preview"></div>
+                <div class="preview-label">Black</div>
+            </div>
+            <div class="preview-cell">
+                <div id="preview-white" class="preview-disk" role="img" aria-label="White disk preview"></div>
+                <div class="preview-label">White</div>
+            </div>
+        </div>
+
+        <div>
+            <span class="field-label">Black piece style</span>
+            <div class="style-cards" id="styles-black"></div>
+        </div>
+
+        <div>
+            <span class="field-label">White piece style</span>
+            <div class="style-cards" id="styles-white"></div>
+        </div>
+    </div>
+
+    <hr class="settings-section-divider" aria-hidden="true">
+
+    <div class="settings-actions">
+        <button id="back-to-menu">Back to Menu</button>
+    </div>
+</div>
+
+<footer>
+    <a href="https://www.instagram.com/sidonstudio/">Developed by @SidonStudio</a>
+</footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const musicVolume = document.getElementById('music-volume');
+        const volumeDisplay = document.getElementById('volume-display');
+        const themeSelect = document.getElementById('theme-select');
+        const backToMenuButton = document.getElementById('back-to-menu');
+        const soundToggle = document.getElementById('sound-toggle');
+
+        // Load settings from localStorage. colorThemes / applyTheme are provided by shared.js.
+        function loadSettings() {
+            const volume = localStorage.getItem('music-volume') || '50';
+            const theme = localStorage.getItem('color-theme') || 'default';
+
+            musicVolume.value = volume;
+            volumeDisplay.textContent = volume + '%';
+
+            // Ensure the loaded theme is still in the available options.
+            // If not, default to a valid one. This handles cases where a theme is removed.
+            let effectiveTheme = theme;
+            if (!Object.prototype.hasOwnProperty.call(colorThemes, theme)) {
+                const validThemes = Object.keys(colorThemes);
+                const firstValidTheme = validThemes.length > 0 ? validThemes[0] : 'default';
+                console.warn(`Loaded theme "${theme}" not found. Applying default theme "${firstValidTheme}".`);
+                effectiveTheme = firstValidTheme;
+                localStorage.setItem('color-theme', effectiveTheme);
+            }
+
+            themeSelect.value = effectiveTheme;
+            applyTheme(effectiveTheme);
+
+            // Sound preference: stored value is the *muted* flag, checkbox shows the *enabled* state.
+            soundToggle.checked = localStorage.getItem('sound-muted') !== 'true';
+        }
+
+        function saveSettings() {
+            localStorage.setItem('music-volume', musicVolume.value);
+            localStorage.setItem('color-theme', themeSelect.value);
+            applyTheme(themeSelect.value);
+        }
+
+        loadSettings();
+
+        musicVolume.addEventListener('input', () => {
+            volumeDisplay.textContent = musicVolume.value + '%';
+            localStorage.setItem('music-volume', musicVolume.value);
+        });
+
+        themeSelect.addEventListener('change', () => {
+            saveSettings();
+        });
+
+        soundToggle.addEventListener('change', () => {
+            // Checkbox checked == sound enabled, so muted flag is the inverse.
+            localStorage.setItem('sound-muted', (!soundToggle.checked).toString());
+        });
+
+        backToMenuButton.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        /* ----------------------- Disk Style Picker ----------------------- */
+        // Bound to DISK_STYLES_BLACK / DISK_STYLES_WHITE in shared.js. Each
+        // entry is a distinct art style (its own SVG file) — no hue-rotate
+        // tinting. The picker writes { black, white } style ids to
+        // localStorage("disk-skin") and pushes the matching SVG URL onto
+        // :root via applyDiskSkin() so every game page renders it.
+        const stylesBlackEl   = document.getElementById('styles-black');
+        const stylesWhiteEl   = document.getElementById('styles-white');
+        const previewBlackEl  = document.getElementById('preview-black');
+        const previewWhiteEl  = document.getElementById('preview-white');
+        const matchThemeEl    = document.getElementById('disk-match-theme');
+
+        // currentSkin reflects what the UI should highlight. When match-theme
+        // is ON it tracks the themed skin (without writing to localStorage so
+        // the user's manual pick is preserved for when they turn match off).
+        // When OFF it tracks the saved manual skin from localStorage.
+        let currentSkin = computeUiSkin();
+
+        function computeUiSkin() {
+            if (getMatchTheme()) {
+                const themeName = themeSelect.value || 'default';
+                return THEME_DISK_MAP[themeName] || THEME_DISK_MAP.default || getDiskSkin();
+            }
+            return getDiskSkin();
+        }
+
+        function onManualPick(updater) {
+            // User explicitly picked something — opt out of theme-matching so
+            // their choice sticks across theme changes.
+            if (matchThemeEl.checked) {
+                matchThemeEl.checked = false;
+                setMatchTheme(false);
+            }
+            currentSkin = setDiskSkin(updater);
+            renderAll();
+        }
+
+        function renderStyles(container, side) {
+            const catalogue = side === 'black' ? DISK_STYLES_BLACK : DISK_STYLES_WHITE;
+            container.textContent = '';
+            catalogue.forEach(style => {
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'style-card' + (style.id === currentSkin[side] ? ' active' : '');
+                card.title = style.label;
+                card.setAttribute('aria-label',
+                    `${side === 'black' ? 'Your' : 'Bot'} piece style: ${style.label}`);
+                card.setAttribute('aria-pressed', style.id === currentSkin[side] ? 'true' : 'false');
+
+                const art = document.createElement('div');
+                art.className = 'style-card-art';
+                art.style.backgroundImage = `url("${style.asset}")`;
+
+                const label = document.createElement('span');
+                label.className = 'style-card-label';
+                label.textContent = style.label;
+
+                card.appendChild(art);
+                card.appendChild(label);
+                card.addEventListener('click', () => onManualPick({ [side]: style.id }));
+                container.appendChild(card);
+            });
+        }
+
+        function renderPreviews() {
+            // Direct 1:1 render of the chosen style's SVG — what you see here
+            // is exactly what the board pieces will render.
+            const blackStyle = DISK_STYLES_BLACK.find(s => s.id === currentSkin.black) || DISK_STYLES_BLACK[0];
+            const whiteStyle = DISK_STYLES_WHITE.find(s => s.id === currentSkin.white) || DISK_STYLES_WHITE[0];
+            previewBlackEl.style.backgroundImage = `url("${blackStyle.asset}")`;
+            previewWhiteEl.style.backgroundImage = `url("${whiteStyle.asset}")`;
+        }
+
+        function renderAll() {
+            renderStyles(stylesBlackEl, 'black');
+            renderStyles(stylesWhiteEl, 'white');
+            renderPreviews();
+        }
+
+        matchThemeEl.checked = getMatchTheme();
+
+        matchThemeEl.addEventListener('change', () => {
+            setMatchTheme(matchThemeEl.checked);
+            if (matchThemeEl.checked) {
+                // Re-apply themed skin live and refresh the picker UI.
+                const themed = THEME_DISK_MAP[themeSelect.value] || THEME_DISK_MAP.default;
+                if (themed) {
+                    applyDiskSkin(themed);
+                    currentSkin = themed;
+                }
+            } else {
+                // Falling back to manual mode — load whatever the user last saved.
+                currentSkin = getDiskSkin();
+                applyDiskSkin(currentSkin);
+            }
+            renderAll();
+        });
+
+        // When the global theme changes via the dropdown, applyTheme() in
+        // shared.js has already pushed the new themed skin onto :root if
+        // match-theme is ON. The picker UI just needs to mirror it.
+        themeSelect.addEventListener('change', () => {
+            if (getMatchTheme()) {
+                currentSkin = computeUiSkin();
+                renderAll();
+            }
+        });
+
+        renderAll();
+    });
+</script>
+</body>
+</html>
