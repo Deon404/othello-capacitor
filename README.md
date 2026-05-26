@@ -1,5 +1,4 @@
-# othello-capacitor
-<<<<<<< HEAD
+# voidllo
 
 Othello game built with Capacitor.
 
@@ -102,4 +101,4 @@ JS SDK runs in the WebView with the default Internet permission.
 | [`othelloonline.html`](othelloonline.html) | Online game page (fork of `othelloplr.html`) with RTDB sync, server-synced turn timer, disconnect banner, rematch flow. |
 =======
 Othello game built with Capacitor
->>>>>>> 23d30b8a4ce95174b83c51d46f5ddb5d2af5c4a4
+>>>>>>> 
