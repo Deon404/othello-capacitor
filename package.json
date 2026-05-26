@@ -1,9 +1,17 @@
 {
+<<<<<<< HEAD
   "name": "voidllo",
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
     "@capacitor/android": "^7.4.0",
+=======
+  "name": "othello",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@capacitor/android": "^7.3.0",
+>>>>>>> 23d30b8a4ce95174b83c51d46f5ddb5d2af5c4a4
     "@capacitor/cli": "^7.3.0",
     "@capacitor/core": "^7.3.0",
     "@capacitor/ios": "^7.4.0",
@@ -82,8 +90,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+<<<<<<< HEAD
   "description": "",
   "devDependencies": {
     "@capacitor/assets": "^3.0.5"
   }
+=======
+  "description": ""
+>>>>>>> 23d30b8a4ce95174b83c51d46f5ddb5d2af5c4a4
 }

@@ -1,4 +1,5 @@
 # othello-capacitor
+<<<<<<< HEAD
 
 Othello game built with Capacitor.
 
@@ -99,3 +100,6 @@ JS SDK runs in the WebView with the default Internet permission.
 | [`multiplayer.js`](multiplayer.js) | `window.Room` singleton: `create`, `join`, `attach`, `publishMove`, `publishSkip`, `requestRematch`, `leave`, presence via `onDisconnect`. |
 | [`online.html`](online.html) | Lobby with Create + Join cards, waiting overlay with copy / share / WhatsApp buttons. |
 | [`othelloonline.html`](othelloonline.html) | Online game page (fork of `othelloplr.html`) with RTDB sync, server-synced turn timer, disconnect banner, rematch flow. |
+=======
+Othello game built with Capacitor
+>>>>>>> 23d30b8a4ce95174b83c51d46f5ddb5d2af5c4a4

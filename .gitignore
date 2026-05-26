@@ -11,6 +11,7 @@ capacitor-cordova-ios-plugins
 # Generated Config files
 App/App/capacitor.config.json
 App/App/config.xml
+<<<<<<< HEAD
 
 # Environment variables (do not commit secrets)
 .env
@@ -18,3 +19,5 @@ firebase-env.js
 
 node_modules
 local.properties
+=======
+>>>>>>> 23d30b8a4ce95174b83c51d46f5ddb5d2af5c4a4
